@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="icon" href="../icone.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="../icone-192.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Embedded walls — retaining walls (EN 1997)</title>
+    <meta name="description" content="Verification of an embedded retaining wall by limit equilibrium to Eurocode 7, both generations: passive resistance, forces, supports, deflection." />
+    <meta name="theme-color" content="#f7f7f6" />
+  </head>
+  <body>
+    <div class="barre"><span>webaedificium</span><span><a href="https://henri421.github.io/WebAedificium/" target="_blank" rel="noopener">Suite</a> · <a href="../" hreflang="fr" lang="fr" aria-label="Version française">FR</a></span></div>
+    <header>
+      <h1>Embedded walls</h1>
+      <p>Embedded retaining wall, cantilevered or with several support levels, by limit equilibrium (EN 1997), 1<sup>st</sup> or 2<sup>nd</sup> generation.</p>
+      <p class="avertissement">Not covered in this version: staging and soil-structure interaction (the deflection is that of the beam, D.8), base heave and piping, vertical equilibrium, resistance of anchors, wall and walers (forces given), overall stability (Slope stability tool).</p>
+    </header>
+    <main>
+      <section id="saisie" aria-label="Input">
+        <form id="formulaire" autocomplete="off" novalidate>
+          <p data-role="erreur" class="erreur" role="alert" hidden></p>
+
+          <fieldset>
+            <legend>Wall and excavation</legend>
+            <label class="ligne"><span>Retained height H (m)</span><input type="text" inputmode="decimal" data-champ="H" /></label>
+            <label class="ligne"><span>Total length L (m)</span><input type="text" inputmode="decimal" data-champ="L" /></label>
+            <label class="ligne"><span>Stiffness EI (kN·m²/m)</span><input type="text" inputmode="decimal" data-champ="EI" /></label>
+            <label class="ligne"><span>Stiffness EA (kN/m)</span><input type="text" inputmode="decimal" data-champ="EA" /></label>
+            <label class="ligne"><span>Toe fixity (%)</span><input type="text" inputmode="decimal" data-champ="degre" /></label>
+            <span class="source">0 %: free toe. 100 %: fixed toe, embedment increased by 20 %.</span>
+            <div class="boutons"><button type="button" data-action="trouver-fiche">Find the minimum embedment</button></div>
+          </fieldset>
+
+          <fieldset>
+            <legend>Supports</legend>
+            <div data-role="appuis"></div>
+            <div class="boutons"><button type="button" data-action="ajouter" data-liste="appuis">+ support</button></div>
+          </fieldset>
+
+          <fieldset>
+            <legend>Active and passive pressure</legend>
+            <label class="ligne"><span>Share of K<sub>0</sub> (0 = K<sub>a</sub>, 1 = K<sub>0</sub>)</span><input type="text" inputmode="decimal" data-champ="partK0" /></label>
+            <label class="ligne"><span>Redistribution</span>
+              <select data-champ="forme">
+                <option value="aucune">None</option>
+                <option value="rectangle">Rectangle</option>
+                <option value="trapeze">Trapezium</option>
+                <option value="triangle-haut">Triangle, maximum at the top</option>
+                <option value="triangle-milieu">Triangle, maximum at mid-height</option>
+                <option value="triangle-bas">Triangle, maximum at the bottom</option>
+                <option value="polygone">Custom</option>
+              </select>
+            </label>
+            <div data-si-forme="polygone">
+              <label class="ligne"><span>Points z/H:value</span><input type="text" data-champ="polygone" /></label>
+              <span class="source">From z/H = 0 to 1, separated by “;”. Only the shape matters.</span>
+            </div>
+            <span class="source">The resultant is preserved. EAB and EAU: later version, from their sources.</span>
+          </fieldset>
+
+          <fieldset>
+            <legend>Ground</legend>
+            <div data-role="couches"></div>
+            <div class="boutons"><button type="button" data-action="ajouter" data-liste="couches">+ layer</button></div>
+            <span class="source">The last layer extends downwards. Imposed K: horizontal component, instead of Annex D.</span>
+          </fieldset>
+
+          <fieldset>
+            <legend>Water</legend>
+            <label class="ligne"><span>Water table, retained side (m)</span><input type="text" inputmode="decimal" data-champ="zTerre" /></label>
+            <label class="ligne"><span>Water table, excavation side (m)</span><input type="text" inputmode="decimal" data-champ="zFouille" /></label>
+            <label class="coche"><input type="checkbox" data-champ="ecoulement" /> Flow around the toe, uniform head loss</label>
+          </fieldset>
+
+          <fieldset>
+            <legend>Loads</legend>
+            <div data-role="charges"></div>
+            <div class="boutons"><button type="button" data-action="ajouter" data-liste="charges">+ load</button></div>
+          </fieldset>
+
+          <fieldset>
+            <legend>Eurocode generation</legend>
+            <div class="generations">
+              <button type="button" data-generation="1re">1<sup>st</sup> (EN 1997-1:2004)</button>
+              <button type="button" data-generation="2e">2<sup>nd</sup> (EN 1997-3:2025)</button>
+            </div>
+            <div data-si-generation="2e">
+              <label class="ligne"><span>Consequence class</span><select data-champ="cc"><option>CC1</option><option>CC2</option><option>CC3</option></select></label>
+              <label class="ligne"><span>Approach</span><select data-champ="approche2"><option value="a+b">Materials: (a) + (b)</option><option value="d">Resistances: (d)</option></select></label>
+            </div>
+            <div data-si-generation="1re">
+              <label class="ligne"><span>Normative profile</span><select data-champ="profil"><option value="recommande">Recommended</option><option value="anb">ANB 2022</option></select></label>
+              <div data-si-profil="recommande"><label class="ligne"><span>Approach</span><select data-champ="approche1"><option>DA1</option><option>DA2</option><option>DA3</option></select></label></div>
+              <div data-si-profil="anb"><label class="ligne"><span>Risk</span><select data-champ="risque"><option value="faible">Low</option><option value="normal">Normal</option><option value="eleve">High</option></select></label></div>
+            </div>
+            <details>
+              <summary>Editable factors</summary>
+              <label class="ligne"><span>γ<sub>G</sub></span><input type="text" inputmode="decimal" data-champ="gG" placeholder="library" /></label>
+              <label class="ligne"><span>γ<sub>Q</sub></span><input type="text" inputmode="decimal" data-champ="gQ" placeholder="library" /></label>
+              <label class="ligne"><span>γ<sub>tan φ</sub></span><input type="text" inputmode="decimal" data-champ="gPhi" placeholder="library" /></label>
+              <label class="ligne"><span>γ<sub>c</sub></span><input type="text" inputmode="decimal" data-champ="gC" placeholder="library" /></label>
+              <label class="ligne"><span>γ<sub>cu</sub></span><input type="text" inputmode="decimal" data-champ="gCu" placeholder="library" /></label>
+              <label class="ligne"><span>γ<sub>Re</sub></span><input type="text" inputmode="decimal" data-champ="gRe" placeholder="library" /></label>
+              <span class="source">Any value entered applies to all combinations and is flagged in the note.</span>
+            </details>
+          </fieldset>
+
+          <fieldset>
+            <legend>Title block</legend>
+            <label class="ligne"><span>Project</span><input type="text" data-role="projet" /></label>
+            <label class="ligne"><span>Element</span><input type="text" data-role="element" /></label>
+          </fieldset>
+        </form>
+      </section>
+
+      <section class="visuels" aria-label="Section and diagrams">
+        <div class="outils">
+          <span class="titre">Section</span>
+          <label><input type="checkbox" data-option="q" checked /> q</label>
+          <label><input type="checkbox" data-option="V" checked /> V</label>
+          <label><input type="checkbox" data-option="M" checked /> M</label>
+          <label><input type="checkbox" data-option="w" checked /> w</label>
+          <label><input type="checkbox" data-option="cotes" checked /> dimensions</label>
+          <label>Combination <select data-role="combinaison"></select></label>
+        </div>
+        <div class="dessin">
+          <div data-role="coupe"></div>
+          <div class="legende">q, V, M of the selected combination; characteristic w, positive towards the excavation.</div>
+        </div>
+        <div data-role="volets"></div>
+      </section>
+
+      <section id="resultat" aria-label="Results">
+        <div class="sorties">
+          <b>Outputs</b>
+          <div class="boutons">
+            <button type="button" class="principal" data-action="exporter-note">Calculation note</button>
+            <button type="button" data-action="exporter-coupe">Section (SVG)</button>
+            <button type="button" data-action="exporter-resultats">Results (CSV)</button>
+            <button type="button" data-action="enregistrer">Input (JSON)</button>
+            <button type="button" data-action="reinitialiser">Reset</button>
+            <label class="bouton-fichier">Open…<input type="file" accept="application/json,.json" data-role="ouvrir" hidden /></label>
+          </div>
+        </div>
+        <div data-role="verdicts"></div>
+      </section>
+    </main>
+    <script type="module" src="../src/main.ts"></script>
+  </body>
+</html>

@@ -2,6 +2,8 @@
 
 import { echapper, nombreAffiche } from 'aedificium-ui';
 import type { Calcul, Resultat } from './form';
+import { T } from './textes';
+import { nature } from './vue';
 
 export interface OptionsDessin {
   q: boolean; V: boolean; M: boolean; w: boolean; cotes: boolean;
@@ -57,7 +59,7 @@ function coupe(c: Calcul, y: (z: number) => number, cotes: boolean): string {
       const y1 = HAUT - 18 - niveauCharge * 12;
       for (let x = x1; x <= x2 + 0.1; x += Math.max(8, (x2 - x1) / 8)) s += ligne(x, y1, x, HAUT - 3, trait, 1);
       s += ligne(x1, y1, x2, y1, trait);
-      s += texte(x1, y1 - 3, `q = ${nombreAffiche(ch.q, 1)} kPa (${ch.nature})`, trait);
+      s += texte(x1, y1 - 3, `q = ${nombreAffiche(ch.q, 1)} kPa (${nature(ch.nature)})`, trait);
       niveauCharge += 1;
     }
     if (ch.type === 'force') {
@@ -76,11 +78,11 @@ function coupe(c: Calcul, y: (z: number) => number, cotes: boolean): string {
   const pointille = ' stroke-dasharray="6 3"';
   if (d.eau.zTerre < zBas) {
     s += ligne(GAUCHE, y(d.eau.zTerre), MUR, y(d.eau.zTerre), eau, 1.4, pointille);
-    s += texte(130, y(d.eau.zTerre) - 4, `nappe ${nombreAffiche(d.eau.zTerre, 2)} m`, eau, 10.5);
+    s += texte(130, y(d.eau.zTerre) - 4, `${T('nappe', 'water')} ${nombreAffiche(d.eau.zTerre, 2)} m`, eau, 10.5);
   }
   if (d.eau.zFouille < zBas) {
     s += ligne(MUR, y(d.eau.zFouille), DROITE, y(d.eau.zFouille), eau, 1.4, pointille);
-    s += texte(280, y(d.eau.zFouille) + 12, `nappe ${nombreAffiche(d.eau.zFouille, 2)} m`, eau, 10.5);
+    s += texte(280, y(d.eau.zFouille) + 12, `${T('nappe', 'water')} ${nombreAffiche(d.eau.zFouille, 2)} m`, eau, 10.5);
   }
 
   s += `<rect x="${MUR - 4}" y="${f(y(0))}" width="8" height="${f(y(d.L) - y(0))}" fill="#e7eaee" stroke="#1a1a1a" stroke-width="1.4"/>`;
@@ -134,14 +136,14 @@ export function coupeEtDiagrammes(c: Calcul, r: Resultat, o: OptionsDessin): str
   const y = (z: number): number => HAUT + z * echelle;
   const k = combi.courbes;
   const toutes: (Diagramme & { actif: boolean })[] = [
-    { actif: o.q, titre: 'Charge équivalente q', unite: 'kN/m', z: k.z, v: k.q, couleur: '#2f5d8a', decimales: 0 },
-    { actif: o.V, titre: 'Effort tranchant V', unite: 'kN/m', z: k.z, v: k.V, couleur: '#1f6f3f', decimales: 0 },
+    { actif: o.q, titre: T('Charge équivalente q', 'Equivalent load q'), unite: 'kN/m', z: k.z, v: k.q, couleur: '#2f5d8a', decimales: 0 },
+    { actif: o.V, titre: T('Effort tranchant V', 'Shear force V'), unite: 'kN/m', z: k.z, v: k.V, couleur: '#1f6f3f', decimales: 0 },
     { actif: o.M, titre: 'Moment M', unite: 'kN·m/m', z: k.z, v: k.M, couleur: '#a8442a', decimales: 0 },
-    { actif: o.w, titre: 'Déplacement w', unite: 'mm', z: r.service.z, v: r.service.w, couleur: '#8a6d00', decimales: 1 },
+    { actif: o.w, titre: T('Déplacement w', 'Displacement w'), unite: 'mm', z: r.service.z, v: r.service.w, couleur: '#8a6d00', decimales: 1 },
   ];
   const actifs = toutes.filter((t) => t.actif);
   const largeur = DROITE + 15 + COLONNE * actifs.length;
   const corps = coupe(c, y, o.cotes) +
     actifs.map((t, i) => diagramme(DROITE + 15 + COLONNE * (i + 0.5), t, y)).join('');
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${largeur} ${HAUT + TRACE + 26}" role="img" font-family="system-ui, 'Segoe UI', Roboto, sans-serif" aria-label="Coupe de la paroi et diagrammes q, V, M et w">${corps}</svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${largeur} ${HAUT + TRACE + 26}" role="img" font-family="system-ui, 'Segoe UI', Roboto, sans-serif" aria-label="${T('Coupe de la paroi et diagrammes q, V, M et w', 'Wall section and q, V, M and w diagrams')}">${corps}</svg>`;
 }

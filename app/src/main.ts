@@ -5,6 +5,7 @@ import { coupeEtDiagrammes, type OptionsDessin } from './dessin';
 import { lireSaisie, longueurProposee, nouvelAppui, nouvelleCharge, relire, saisieParDefaut, serialiser, verifier, type Calcul, type Resultat, type Saisie } from './form';
 import { noteDuCalcul } from './note';
 import { appuisHtml, blocEntrees, blocsResultat, chargesHtml, couchesHtml, messageDErreur, nomCombinaison, verdictsHtml, voletsHtml } from './vue';
+import { T } from './textes';
 import './style.css';
 
 definirLangue(langueDuDocument(document));
@@ -12,8 +13,8 @@ definirLangue(langueDuDocument(document));
 const CLE_SAISIE = 'parois/saisie';
 const CLE_CARTOUCHE = 'parois:cartouche';
 
-function exige<T extends Element>(selecteur: string): T {
-  const e = document.querySelector<T>(selecteur);
+function exige<E extends Element>(selecteur: string): E {
+  const e = document.querySelector<E>(selecteur);
   if (e === null) throw new Error(`Élément de page absent : ${selecteur}.`);
   return e;
 }
@@ -157,7 +158,7 @@ const cartouche = () => ({ projet: champProjet.value, element: champElement.valu
 function ajouter(liste: string): void {
   if (liste === 'couches') {
     const n = saisie.couches.length + 1;
-    saisie.couches.push({ ...saisie.couches[saisie.couches.length - 1], nom: `Couche ${n}`, h: '1' });
+    saisie.couches.push({ ...saisie.couches[saisie.couches.length - 1], nom: `${T('Couche', 'Layer')} ${n}`, h: '1' });
   }
   if (liste === 'appuis') saisie.appuis.push(nouvelAppui(saisie.appuis.length + 1));
   if (liste === 'charges') saisie.charges.push(nouvelleCharge());
@@ -187,9 +188,9 @@ document.addEventListener('click', (evenement) => {
     return recalculer();
   }
   if (action === 'trouver-fiche') {
-    if (dernier === null) return montrerErreur('Aucun calcul valide : corriger la saisie.');
+    if (dernier === null) return montrerErreur(T('Aucun calcul valide : corriger la saisie.', 'No valid calculation: correct the input.'));
     const L = longueurProposee(dernier.calcul, dernier.resultat);
-    if (L === null) return montrerErreur('Aucune longueur n’équilibre la paroi avec cette saisie.');
+    if (L === null) return montrerErreur(T('Aucune longueur n’équilibre la paroi avec cette saisie.', 'No length balances the wall with this input.'));
     saisie.L = L;
     ecrireSaisie();
     return recalculer();
@@ -202,14 +203,14 @@ document.addEventListener('click', (evenement) => {
     return recalculer();
   }
   if (!action.startsWith('exporter-')) return;
-  if (dernier === null) return montrerErreur('Aucun calcul valide à exporter : corriger la saisie.');
+  if (dernier === null) return montrerErreur(T('Aucun calcul valide à exporter : corriger la saisie.', 'No valid calculation to export: correct the input.'));
   const e = dernier;
   if (action === 'exporter-note') {
     ouvrirOuTelecharger('parois-note.html', noteDeCalculHtml(noteDuCalcul(e.calcul, e.resultat, cartouche()), ''));
   } else if (action === 'exporter-coupe') {
     telecharger('parois-coupe.svg', svgAutonome(coupeEtDiagrammes(e.calcul, e.resultat, optionsDessin(e.resultat)), ''), 'image/svg+xml;charset=utf-8');
   } else if (action === 'exporter-resultats') {
-    const blocs = [{ titre: 'Données', lignes: blocEntrees(e.calcul), note: null }, ...blocsResultat(e.resultat)];
+    const blocs = [{ titre: T('Données', 'Input'), lignes: blocEntrees(e.calcul), note: null }, ...blocsResultat(e.resultat)];
     telecharger('parois-resultats.csv', resultatsEnCsv(blocsEnTexte(blocs)), 'text/csv;charset=utf-8');
   }
 });
