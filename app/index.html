@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Parois — soutènements encastrés (EN 1997)</title>
+    <meta name="description" content="Vérification d’une paroi encastrée par équilibre limite selon l’Eurocode 7, deux générations : butée, efforts, appuis, déformée." />
+    <meta name="theme-color" content="#f7f7f6" />
+  </head>
+  <body>
+    <div class="barre"><span>webaedificium</span><a href="https://henri421.github.io/WebAedificium/" target="_blank" rel="noopener">Suite</a></div>
+    <header>
+      <h1>Parois</h1>
+      <p>Paroi de soutènement encastrée, en console ou à plusieurs niveaux d’appui, par équilibre limite (EN 1997), en 1<sup>re</sup> ou 2<sup>e</sup> génération.</p>
+      <p class="avertissement">Non traités dans cette version : phasage et interaction sol-structure (la déformée est celle de la poutre, D.8), soulèvement du fond et renard, équilibre vertical, résistance des tirants, de la paroi et des liernes (efforts rendus), stabilité générale (outil Stabilité de talus).</p>
+    </header>
+    <main>
+      <section id="saisie" aria-label="Saisie">
+        <form id="formulaire" autocomplete="off" novalidate>
+          <p data-role="erreur" class="erreur" role="alert" hidden></p>
+
+          <fieldset>
+            <legend>Paroi et excavation</legend>
+            <label class="ligne"><span>Hauteur retenue H (m)</span><input type="text" inputmode="decimal" data-champ="H" /></label>
+            <label class="ligne"><span>Longueur totale L (m)</span><input type="text" inputmode="decimal" data-champ="L" /></label>
+            <label class="ligne"><span>Rigidité EI (kN·m²/m)</span><input type="text" inputmode="decimal" data-champ="EI" /></label>
+            <label class="ligne"><span>Rigidité EA (kN/m)</span><input type="text" inputmode="decimal" data-champ="EA" /></label>
+            <label class="ligne"><span>Encastrement du pied (%)</span><input type="text" inputmode="decimal" data-champ="degre" /></label>
+            <span class="source">0 % : pied libre. 100 % : pied encastré, fiche majorée de 20 %.</span>
+            <div class="boutons"><button type="button" data-action="trouver-fiche">Trouver la fiche minimale</button></div>
+          </fieldset>
+
+          <fieldset>
+            <legend>Appuis</legend>
+            <div data-role="appuis"></div>
+            <div class="boutons"><button type="button" data-action="ajouter" data-liste="appuis">+ appui</button></div>
+          </fieldset>
+
+          <fieldset>
+            <legend>Poussée et butée</legend>
+            <label class="ligne"><span>Part de K<sub>0</sub> (0 = K<sub>a</sub>, 1 = K<sub>0</sub>)</span><input type="text" inputmode="decimal" data-champ="partK0" /></label>
+            <label class="ligne"><span>Redistribution</span>
+              <select data-champ="forme">
+                <option value="aucune">Aucune</option>
+                <option value="rectangle">Rectangle</option>
+                <option value="trapeze">Trapèze</option>
+                <option value="triangle-haut">Triangle, maximum en haut</option>
+                <option value="triangle-milieu">Triangle, maximum au milieu</option>
+                <option value="triangle-bas">Triangle, maximum en bas</option>
+                <option value="polygone">Personnalisée</option>
+              </select>
+            </label>
+            <div data-si-forme="polygone">
+              <label class="ligne"><span>Points z/H:valeur</span><input type="text" data-champ="polygone" /></label>
+              <span class="source">De z/H = 0 à 1, séparés par « ; ». Seule la forme compte.</span>
+            </div>
+            <span class="source">La résultante est conservée. EAB et EAU : version ultérieure, à partir de leurs sources.</span>
+          </fieldset>
+
+          <fieldset>
+            <legend>Terrain</legend>
+            <div data-role="couches"></div>
+            <div class="boutons"><button type="button" data-action="ajouter" data-liste="couches">+ couche</button></div>
+            <span class="source">La dernière couche se prolonge. K imposé : composante horizontale, à la place de l’annexe D.</span>
+          </fieldset>
+
+          <fieldset>
+            <legend>Eau</legend>
+            <label class="ligne"><span>Nappe côté terre (m)</span><input type="text" inputmode="decimal" data-champ="zTerre" /></label>
+            <label class="ligne"><span>Nappe côté fouille (m)</span><input type="text" inputmode="decimal" data-champ="zFouille" /></label>
+            <label class="coche"><input type="checkbox" data-champ="ecoulement" /> Écoulement autour du pied, pertes de charge uniformes</label>
+          </fieldset>
+
+          <fieldset>
+            <legend>Charges</legend>
+            <div data-role="charges"></div>
+            <div class="boutons"><button type="button" data-action="ajouter" data-liste="charges">+ charge</button></div>
+          </fieldset>
+
+          <fieldset>
+            <legend>Génération d’Eurocode</legend>
+            <div class="generations">
+              <button type="button" data-generation="1re">1<sup>re</sup> (EN 1997-1:2004)</button>
+              <button type="button" data-generation="2e">2<sup>e</sup> (EN 1997-3:2025)</button>
+            </div>
+            <div data-si-generation="2e">
+              <label class="ligne"><span>Classe de conséquences</span><select data-champ="cc"><option>CC1</option><option>CC2</option><option>CC3</option></select></label>
+              <label class="ligne"><span>Approche</span><select data-champ="approche2"><option value="a+b">Matériaux : (a) + (b)</option><option value="d">Résistances : (d)</option></select></label>
+            </div>
+            <div data-si-generation="1re">
+              <label class="ligne"><span>Profil normatif</span><select data-champ="profil"><option value="recommande">Recommandé</option><option value="anb">ANB 2022</option></select></label>
+              <div data-si-profil="recommande"><label class="ligne"><span>Approche</span><select data-champ="approche1"><option>DA1</option><option>DA2</option><option>DA3</option></select></label></div>
+              <div data-si-profil="anb"><label class="ligne"><span>Risque</span><select data-champ="risque"><option value="faible">Faible</option><option value="normal">Normal</option><option value="eleve">Élevé</option></select></label></div>
+            </div>
+            <details>
+              <summary>Coefficients modifiables</summary>
+              <label class="ligne"><span>γ<sub>G</sub></span><input type="text" inputmode="decimal" data-champ="gG" placeholder="bibliothèque" /></label>
+              <label class="ligne"><span>γ<sub>Q</sub></span><input type="text" inputmode="decimal" data-champ="gQ" placeholder="bibliothèque" /></label>
+              <label class="ligne"><span>γ<sub>tan φ</sub></span><input type="text" inputmode="decimal" data-champ="gPhi" placeholder="bibliothèque" /></label>
+              <label class="ligne"><span>γ<sub>c</sub></span><input type="text" inputmode="decimal" data-champ="gC" placeholder="bibliothèque" /></label>
+              <label class="ligne"><span>γ<sub>cu</sub></span><input type="text" inputmode="decimal" data-champ="gCu" placeholder="bibliothèque" /></label>
+              <label class="ligne"><span>γ<sub>Re</sub></span><input type="text" inputmode="decimal" data-champ="gRe" placeholder="bibliothèque" /></label>
+              <span class="source">Toute valeur saisie s’applique à toutes les combinaisons et est signalée dans la note.</span>
+            </details>
+          </fieldset>
+
+          <fieldset>
+            <legend>Cartouche</legend>
+            <label class="ligne"><span>Projet</span><input type="text" data-role="projet" /></label>
+            <label class="ligne"><span>Élément</span><input type="text" data-role="element" /></label>
+          </fieldset>
+        </form>
+      </section>
+
+      <section class="visuels" aria-label="Coupe et diagrammes">
+        <div class="outils">
+          <span class="titre">Coupe</span>
+          <label><input type="checkbox" data-option="q" checked /> q</label>
+          <label><input type="checkbox" data-option="V" checked /> V</label>
+          <label><input type="checkbox" data-option="M" checked /> M</label>
+          <label><input type="checkbox" data-option="w" checked /> w</label>
+          <label><input type="checkbox" data-option="cotes" checked /> cotes</label>
+          <label>Combinaison <select data-role="combinaison"></select></label>
+        </div>
+        <div class="dessin">
+          <div data-role="coupe"></div>
+          <div class="legende">q, V, M de la combinaison choisie ; w caractéristique, positif vers la fouille.</div>
+        </div>
+        <div data-role="volets"></div>
+      </section>
+
+      <section id="resultat" aria-label="Résultats">
+        <div class="sorties">
+          <b>Sorties</b>
+          <div class="boutons">
+            <button type="button" class="principal" data-action="exporter-note">Note de calcul</button>
+            <button type="button" data-action="exporter-coupe">Coupe (SVG)</button>
+            <button type="button" data-action="exporter-resultats">Résultats (CSV)</button>
+            <button type="button" data-action="enregistrer">Saisie (JSON)</button>
+            <button type="button" data-action="reinitialiser">Réinitialiser</button>
+            <label class="bouton-fichier">Ouvrir…<input type="file" accept="application/json,.json" data-role="ouvrir" hidden /></label>
+          </div>
+        </div>
+        <div data-role="verdicts"></div>
+      </section>
+    </main>
+    <script type="module" src="./src/main.ts"></script>
+  </body>
+</html>
