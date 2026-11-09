@@ -249,3 +249,8 @@ for (const champ of [champProjet, champElement]) {
 ecrireSaisie();
 rendreListes();
 recalculer();
+
+// Hors navigateur (tests), pas de service worker.
+if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+  void import('./pwa').then((m) => m.enregistrerServiceWorker());
+}
