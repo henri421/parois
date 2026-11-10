@@ -57,9 +57,10 @@ function descriptionCharge(c: Calcul['donnees']['charges'][number]): string[] {
   const n = nature(c.nature);
   if (c.type === 'repartie') return [T('Répartie', 'Uniform'), n, `q = ${aff(c.q, 1)} kPa`];
   if (c.type === 'bande') {
-    const paroi = c.rigide ? T('rigide', 'rigid') : T('souple', 'flexible');
-    return [T('Bande', 'Strip'), n, T(`q = ${aff(c.q, 1)} kPa, à ${aff(c.a, 2)} m, largeur ${aff(c.b, 2)} m, paroi ${paroi}`,
-      `q = ${aff(c.q, 1)} kPa, at ${aff(c.a, 2)} m, width ${aff(c.b, 2)} m, ${paroi} wall`)];
+    const modele = c.modele === 'coin' ? T('coin de poussée', 'earth-pressure wedge')
+      : c.rigide ? T('Boussinesq doublée', 'Boussinesq doubled') : 'Boussinesq';
+    return [T('Bande', 'Strip'), n, T(`q = ${aff(c.q, 1)} kPa, à ${aff(c.a, 2)} m, largeur ${aff(c.b, 2)} m, ${modele}`,
+      `q = ${aff(c.q, 1)} kPa, at ${aff(c.a, 2)} m, width ${aff(c.b, 2)} m, ${modele}`)];
   }
   if (c.type === 'force') return [T('Force', 'Force'), n, T(`H = ${aff(c.H, 1)} kN/m à z = ${aff(c.z, 2)} m`, `H = ${aff(c.H, 1)} kN/m at z = ${aff(c.z, 2)} m`)];
   if (c.type === 'moment') return ['Moment', n, T(`M = ${aff(c.M, 1)} kN·m/m à z = ${aff(c.z, 2)} m`, `M = ${aff(c.M, 1)} kN·m/m at z = ${aff(c.z, 2)} m`)];

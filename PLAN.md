@@ -13,7 +13,7 @@ noyau : `verifierParoi(d: DonneesParoi): ResultatParoi` dans `src/parois.ts`.
 - Pied libre, encastré (fiche majorée de 20 %, méthode de Blum) ou degré intermédiaire (interpolation linéaire).
 - Butée mobilisée au prorata pour la fiche réelle ; recherche de fiche minimale.
 - Couches libres, δ/φ par couche, Ka et Kp imposables, part de K0, redistributions (rectangle, trapèze, triangles, polygone).
-- Charges : réparties, bandes (Boussinesq, doublée pour paroi rigide), forces, moments, pressions imposées.
+- Charges : réparties, bandes (Boussinesq, doublée pour paroi rigide, ou coin de poussée Kah·q·b réparti entre a·tan φ et (a+b)·tan ϑa), forces, moments, pressions imposées.
 - Eau : hydrostatique ou écoulement au pied à gradient uniforme.
 - Normes : EN 1997-3:2025 tableau 7.2, approches (a)+(b) et (d) ; EN 1997-1:2004 DA1, DA2, DA3 ; ANB 2022.
 - Coefficients modifiables, signalés dans le résultat. Liernes : T·a²/10 ou T·a²/8.

@@ -29,6 +29,8 @@ export interface SaisieAppui {
 
 export interface SaisieCharge {
   type: string; nature: string; q: string; a: string; b: string; rigide: boolean;
+  /** Bande : 'souple', 'rigide' (Boussinesq) ou 'coin' ; absent dans les fichiers anciens, rigide fait foi. */
+  modele?: string;
   H: string; M: string; z: string; z1: string; z2: string; p1: string; p2: string;
 }
 
@@ -54,7 +56,7 @@ export const nouvelAppui = (n: number): SaisieAppui =>
   ({ nom: `A${n}`, type: 'tirant', z: '1,2', inclinaison: '20', entraxe: '2,5', effort: '', EA: '', longueur: '', lierne: 'continue' });
 
 export const nouvelleCharge = (): SaisieCharge =>
-  ({ type: 'repartie', nature: 'variable', q: '10', a: '1', b: '2', rigide: true, H: '10', M: '10', z: '0', z1: '0', z2: '1', p1: '5', p2: '5' });
+  ({ type: 'repartie', nature: 'variable', q: '10', a: '1', b: '2', rigide: true, modele: '', H: '10', M: '10', z: '0', z1: '0', z2: '1', p1: '5', p2: '5' });
 
 /** Le cas de la maquette, nombres ecrits a la francaise. */
 export function saisieParDefaut(): Saisie {
@@ -122,10 +124,18 @@ function lireAppui(a: SaisieAppui): Appui {
   };
 }
 
+/** Modele d'une bande saisie : 'souple', 'rigide' ou 'coin'. */
+export const modeleBande = (c: SaisieCharge): 'souple' | 'rigide' | 'coin' =>
+  (c.modele === 'coin' || c.modele === 'rigide' || c.modele === 'souple' ? c.modele : c.rigide ? 'rigide' : 'souple');
+
 function lireCharge(c: SaisieCharge, i: number): Charge {
   const n = (brut: string, champ: string) => nb(brut, `${T('Charge', 'Load')} ${i + 1}${T(' : ', ': ')}${champ}`);
   const nature = c.nature === 'permanente' ? 'permanente' as const : 'variable' as const;
-  if (c.type === 'bande') return { type: 'bande', nature, q: n(c.q, 'q'), a: n(c.a, 'distance'), b: n(c.b, T('largeur', 'width')), rigide: c.rigide };
+  if (c.type === 'bande') {
+    const m = modeleBande(c);
+    return { type: 'bande', nature, q: n(c.q, 'q'), a: n(c.a, 'distance'), b: n(c.b, T('largeur', 'width')),
+      rigide: m === 'rigide', modele: m === 'coin' ? 'coin' : 'boussinesq' };
+  }
   if (c.type === 'force') return { type: 'force', nature, z: n(c.z, T('niveau', 'level')), H: n(c.H, 'H') };
   if (c.type === 'moment') return { type: 'moment', nature, z: n(c.z, T('niveau', 'level')), M: n(c.M, 'M') };
   if (c.type === 'pression') return { type: 'pression', nature, z1: n(c.z1, 'z₁'), z2: n(c.z2, 'z₂'), p1: n(c.p1, 'p₁'), p2: n(c.p2, 'p₂') };

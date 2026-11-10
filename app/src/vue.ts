@@ -1,7 +1,7 @@
 /** Presentation : listes de saisie, cartes de verdict, volets, blocs de resultats. Mise en forme pure : aucun calcul. */
 
 import { echapper, nombreAffiche, notationHtml, tauxAffiche, type BlocResultat, type LigneResultat } from 'aedificium-ui';
-import type { Calcul, Resultat, Saisie } from './form';
+import { modeleBande, type Calcul, type Resultat, type Saisie } from './form';
 import { phrase, T } from './textes';
 
 type Combi = Resultat['combinaisons'][number];
@@ -23,8 +23,8 @@ export const hypotheses = (): string[] => [
     'K_a and K_p to Annex D, D.3.2, layer by layer; minimum active pressure of 10 % of the vertical stress (7.5.3.2). K_0 = 1 − sin φ.'),
   T('Redistribution : terres et surcharges réparties sur la hauteur retenue, résultante conservée. L’eau, les bandes et les pressions imposées ne sont pas redistribuées.',
     'Redistribution: earth and uniform surcharges over the retained height, resultant preserved. Water, strip loads and imposed pressures are not redistributed.'),
-  T('Charge en bande : Boussinesq en demi-espace, doublée pour une paroi rigide (Terzaghi).',
-    'Strip load: Boussinesq in a half-space, doubled for a rigid wall (Terzaghi).'),
+  T('Charge en bande : Boussinesq en demi-espace, doublée pour une paroi rigide (Terzaghi) ; ou coin de poussée, résultante K_ah·q·b répartie uniformément entre a·tan φ et (a + b)·tan ϑ_a, ϑ_a plan de glissement de Coulomb, φ et δ de la couche de surface (répartition classique, choix de l’outil).',
+    'Strip load: Boussinesq in a half-space, doubled for a rigid wall (Terzaghi); or earth-pressure wedge, resultant K_ah·q·b spread uniformly between a·tan φ and (a + b)·tan ϑ_a, ϑ_a Coulomb slip plane, φ and δ of the surface layer (classical distribution, a choice of the tool).'),
   T('Eau : hydrostatique, ou gradient uniforme i = Δh / longueur du chemin autour du pied.',
     'Water: hydrostatic, or uniform gradient i = Δh / length of the flow path around the toe.'),
   T('Lierne : T·a²/10 si continue, T·a²/8 sur deux appuis, choix de l’outil.',
@@ -112,7 +112,11 @@ export const chargesHtml = (s: Saisie): string => {
       corps = champ('q (kPa)', 'charges', i, 'q', c.q) +
         champ(T('Distance à la paroi (m)', 'Distance to the wall (m)'), 'charges', i, 'a', c.a) +
         champ(T('Largeur (m)', 'Width (m)'), 'charges', i, 'b', c.b) +
-        `<label class="coche"><input type="checkbox" data-liste="charges" data-i="${i}" data-sous="rigide"${c.rigide ? ' checked' : ''}> ${T('Paroi rigide : Boussinesq doublée', 'Rigid wall: Boussinesq doubled')}</label>`;
+        choix(T('Modèle', 'Model'), 'charges', i, 'modele', modeleBande(c), [
+          ['rigide', T('Boussinesq doublée (paroi rigide)', 'Boussinesq doubled (rigid wall)')],
+          ['souple', T('Boussinesq (paroi souple)', 'Boussinesq (flexible wall)')],
+          ['coin', T('Coin de poussée Kₐₕ·q·b', 'Earth-pressure wedge Kₐₕ·q·b')],
+        ]);
     }
     if (c.type === 'force') corps = champ(T('H vers la fouille (kN/m)', 'H towards the excavation (kN/m)'), 'charges', i, 'H', c.H) + champ(niveau, 'charges', i, 'z', c.z);
     if (c.type === 'moment') corps = champ('M (kN·m/m)', 'charges', i, 'M', c.M) + champ(niveau, 'charges', i, 'z', c.z);

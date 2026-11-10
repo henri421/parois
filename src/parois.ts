@@ -41,7 +41,8 @@ export interface Couche {
 
 export type Charge =
   | { type: 'repartie'; nature: Nature; q: number }
-  | { type: 'bande'; nature: Nature; q: number; a: number; b: number; rigide: boolean }
+  /** modele : 'boussinesq' (defaut, elastique) ou 'coin' (coin de poussee, Kah.q.b ; rigide sans effet). */
+  | { type: 'bande'; nature: Nature; q: number; a: number; b: number; rigide: boolean; modele?: 'boussinesq' | 'coin' }
   | { type: 'force'; nature: Nature; z: number; H: number }
   | { type: 'moment'; nature: Nature; z: number; M: number }
   | { type: 'pression'; nature: Nature; z1: number; z2: number; p1: number; p2: number };
@@ -187,6 +188,36 @@ export function pressionBande(q: number, a: number, b: number, z: number, rigide
   const t2 = Math.atan((a + b) / z);
   const beta = t2 - t1;
   return ((rigide ? 2 : 1) * q * (beta - Math.sin(beta) * Math.cos(t1 + t2))) / Math.PI;
+}
+
+/**
+ * Angle sur l'horizontale du plan de glissement actif de Coulomb (paroi verticale, terre-plein
+ * horizontal) : maximum de cot(t).sin(t - phi)/cos(t - phi - delta). Angles en radians.
+ */
+export function angleGlissementActif(phi: number, delta: number): number {
+  if (phi <= 0) return Math.PI / 4;
+  const f = (t: number): number => Math.sin(t - phi) / Math.tan(t) / Math.cos(t - phi - delta);
+  let a = phi + 1e-9;
+  let b = Math.PI / 2 - 1e-9;
+  const r = (Math.sqrt(5) - 1) / 2;
+  for (let k = 0; k < 100; k += 1) {
+    const x1 = b - r * (b - a);
+    const x2 = a + r * (b - a);
+    if (f(x1) < f(x2)) a = x1;
+    else b = x2;
+  }
+  return (a + b) / 2;
+}
+
+/**
+ * Charge en bande par coin de poussee : resultante Kah.q.b repartie uniformement entre les plans
+ * issus des bords de la bande, a.tan(phi) et (a + b).tan(theta). Angles en radians.
+ */
+export function pressionBandeCoin(q: number, a: number, b: number, z: number, Kah: number, phi: number, theta: number): number {
+  const z1 = a * Math.tan(Math.max(phi, 0));
+  const z2 = (a + b) * Math.tan(theta);
+  if (z < z1 || z >= z2 || z2 <= z1) return 0;
+  return (Kah * q * b) / (z2 - z1);
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -385,6 +416,24 @@ function pressionsEn(d: DonneesParoi, j: Jeu, z: number, eps: number, L: number)
   return { eG, eQ: terre(qG + qQ) - eG, eau: ua - up, butee };
 }
 
+/** Coefficient horizontal applique a une surcharge a la profondeur z (Ka, melange K0, 1 si non draine). */
+function coefficientSurcharge(d: DonneesParoi, j: Jeu, z: number): number {
+  const c = coucheEn(d, z);
+  if (c.phi <= 0) return 1;
+  const phiD = Math.atan(Math.tan(rad(c.phi)) / j.gPhi);
+  const da = Math.atan(c.kDeltaA * Math.tan(phiD));
+  const Ka = c.KaImpose !== null ? c.KaImpose / Math.cos(da) : coefficientKq(phiD, da, true);
+  return (1 - d.partK0) * Ka * Math.cos(da) + d.partK0 * (1 - Math.sin(phiD));
+}
+
+/** Plans du coin de poussee : phi et delta de calcul de la couche de surface. */
+function anglesCoin(d: DonneesParoi, j: Jeu): { phi: number; theta: number } {
+  const c = d.couches[0];
+  if (c.phi <= 0) return { phi: 0, theta: Math.PI / 4 };
+  const phi = Math.atan(Math.tan(rad(c.phi)) / j.gPhi);
+  return { phi, theta: angleGlissementActif(phi, Math.atan(c.kDeltaA * Math.tan(phi))) };
+}
+
 const FORMES: Record<Exclude<FormeRedistribution, 'aucune' | 'polygone'>, readonly (readonly [number, number])[]> = {
   rectangle: [[0, 1], [1, 1]],
   'triangle-haut': [[0, 1], [1, 0]],
@@ -442,6 +491,13 @@ function maillage(d: DonneesParoi, Ls: number): number[] {
     if (c.type === 'pression') {
       ajout(c.z1);
       ajout(c.z2);
+    }
+    if (c.type === 'bande' && c.modele === 'coin') {
+      for (const j of [SERVICE, ...jeux(d.norme).map((x) => appliquerModifications(x, d.modifications))]) {
+        const g = anglesCoin(d, j);
+        ajout(c.a * Math.tan(g.phi));
+        ajout((c.a + c.b) * Math.tan(g.theta));
+      }
     }
   }
   const tri = [...pts].sort((a, b) => a - b);
@@ -552,11 +608,14 @@ function chargesElements(d: DonneesParoi, j: Jeu, zn: number[], L: number): { A:
       }
     }
   }
+  const coin = anglesCoin(d, j);
   const supp = (z: number, eps: number): number => {
     let s = 0;
     for (const c of d.charges) {
       const g = c.nature === 'permanente' ? j.gG : j.gQ;
-      if (c.type === 'bande') s += g * pressionBande(c.q, c.a, c.b, z, c.rigide);
+      if (c.type === 'bande' && c.modele === 'coin') {
+        s += g * pressionBandeCoin(c.q, c.a, c.b, z + eps, coefficientSurcharge(d, j, z + eps), coin.phi, coin.theta);
+      } else if (c.type === 'bande') s += g * pressionBande(c.q, c.a, c.b, z, c.rigide);
       if (c.type === 'pression' && z + eps >= c.z1 && z + eps < c.z2) {
         s += g * (c.p1 + ((c.p2 - c.p1) * (z - c.z1)) / (c.z2 - c.z1));
       }
