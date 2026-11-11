@@ -5,6 +5,7 @@ import { coupeEtDiagrammes } from './dessin';
 import type { Calcul, Resultat } from './form';
 import { phrase, T } from './textes';
 import { aff, blocsResultat, clauseRotation, entreesParSection, hypotheses, nature, nomCombinaison } from './vue';
+import { VERSION_OUTIL } from './version';
 
 const bloc = (titre: string, lignes: LigneResultat[]): ElementNote => ({ type: 'bloc', bloc: { titre, lignes, note: null } });
 
@@ -85,6 +86,7 @@ export function noteDuCalcul(calcul: Calcul, r: Resultat, cartouche: { projet: s
   const rigide = T('rigide', 'rigid');
   return {
     cartouche: {
+      version: VERSION_OUTIL,
       projet: cartouche.projet,
       element: cartouche.element.trim() === '' ? T('Paroi', 'Wall') : cartouche.element,
       date: cartouche.date,
