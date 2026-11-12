@@ -27,6 +27,9 @@
             <label class="ligne"><span>Longueur totale L (m)</span><input type="text" inputmode="decimal" data-champ="L" /></label>
             <label class="ligne"><span>Rigidité EI (kN·m²/m)</span><input type="text" inputmode="decimal" data-champ="EI" /></label>
             <label class="ligne"><span>Rigidité EA (kN/m)</span><input type="text" inputmode="decimal" data-champ="EA" /></label>
+            <label class="ligne"><span>Profilé de berlinoise</span><input type="text" data-champ="profilParoi" placeholder="aucun" /></label>
+            <label class="ligne"><span>Nuance d’acier</span><select data-champ="nuance"><option value="S235">S235</option><option value="S275">S275</option><option value="S355">S355</option><option value="S420">S420</option><option value="S460">S460</option></select></label>
+            <label class="ligne"><span>Entraxe des profilés (m)</span><input type="text" inputmode="decimal" data-champ="entraxeProfils" /></label>
             <label class="ligne"><span>Encastrement du pied (%)</span><input type="text" inputmode="decimal" data-champ="degre" /></label>
             <span class="source">0 % : pied libre. 100 % : pied encastré, fiche majorée de 20 %.</span>
             <div class="boutons"><button type="button" data-action="trouver-fiche">Trouver la fiche minimale</button></div>

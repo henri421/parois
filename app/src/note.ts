@@ -1,10 +1,11 @@
 /** Contenu de la note de calcul commune (`noteDeCalculHtml` d'aedificium-ui). PUR : aucun calcul. */
 
 import { avertissement2eGeneration, nombreAffiche, tauxAffiche, type ElementNote, type LigneResultat, type NoteDeCalcul, type VerificationNote } from 'aedificium-ui';
+import { verifierAcier, type ElementAcier } from '../../src/acier';
 import { coupeEtDiagrammes } from './dessin';
 import type { Calcul, Resultat } from './form';
 import { phrase, T } from './textes';
-import { aff, blocsResultat, clauseRotation, entreesParSection, hypotheses, nature, nomCombinaison } from './vue';
+import { aff, blocsResultat, clauseRotation, entreesParSection, hypotheses, nature, nomCombinaison, titreAcier } from './vue';
 import { VERSION_OUTIL } from './version';
 
 const bloc = (titre: string, lignes: LigneResultat[]): ElementNote => ({ type: 'bloc', bloc: { titre, lignes, note: null } });
@@ -69,16 +70,33 @@ function descriptionCharge(c: Calcul['donnees']['charges'][number]): string[] {
     `${aff(c.p1, 1)} to ${aff(c.p2, 1)} kPa, from z = ${aff(c.z1, 2)} to ${aff(c.z2, 2)} m`)];
 }
 
-export function noteDuCalcul(calcul: Calcul, r: Resultat, cartouche: { projet: string; element: string; date: string }): NoteDeCalcul {
+const tableauAcier = (elements: ElementAcier[]): ElementNote[] => (elements.length === 0 ? [] : [{
+  type: 'tableau',
+  titre: T('Acier', 'Steel'),
+  entetes: [T('Élément', 'Element'), T('Profilé', 'Section'), 'N (kN)', 'M (kN·m)', 'V (kN)', 'L (m)', T('Taux', 'Ratio')],
+  lignes: elements.map((e) => [titreAcier(e), `${e.profil} ${e.nuance}`, aff(e.N, 1), aff(e.M, 1), aff(e.V, 1), aff(e.longueur, 2),
+    e.taux === null ? '—' : tauxAffiche(e.taux)]),
+}]);
+
+export function noteDuCalcul(calcul: Calcul, r: Resultat, cartouche: { projet: string; element: string; date: string }) {
   const d = calcul.donnees;
   const e = entreesParSection(calcul);
   const figure = coupeEtDiagrammes(calcul, r, { q: true, V: true, M: true, w: true, cotes: true, combinaison: r.gouvernant.combinaison });
-  const verifications: VerificationNote[] = r.combinaisons.map((x) => ({
-    nom: `Rotation, ${nomCombinaison(x.nom)}`,
-    clause: clauseRotation(r),
-    taux: x.mobilisation,
-    ok: x.mobilisation <= 1,
-  }));
+  const acier = verifierAcier(calcul.donnees, r, calcul.acier);
+  const verifications: (VerificationNote & { taux: number })[] = [
+    ...r.combinaisons.map((x) => ({
+      nom: `Rotation, ${nomCombinaison(x.nom)}`,
+      clause: clauseRotation(r),
+      taux: x.mobilisation,
+      ok: x.mobilisation <= 1,
+    })),
+    ...acier.map((x) => ({
+      nom: `${titreAcier(x)}, ${x.profil} ${x.nuance}`,
+      clause: 'EN 1993-1-1, 6.2 ; 6.3',
+      taux: x.taux ?? NaN,
+      ok: x.taux !== null && x.taux <= 1,
+    })),
+  ];
   const nf = (v: number | null): string => (v === null ? 'auto' : nombreAffiche(v, 3));
   const norme = d.norme.generation === 2
     ? 'EN 1997-3:2025, EN 1990:2023'
@@ -125,9 +143,9 @@ export function noteDuCalcul(calcul: Calcul, r: Resultat, cartouche: { projet: s
         ...r.combinaisons.map((x) => bloc(`${T('Coefficients', 'Factors')}, ${nomCombinaison(x.nom)}`,
           x.coefficients.map((k) => ({ symbole: k.nom, libelle: phrase(k.source), valeur: nombreAffiche(k.valeur, 3) })))),
       ],
-      calculs: [...tableaux(calcul, r), ...blocsResultat(r).map((b): ElementNote => ({ type: 'bloc', bloc: b }))],
+      calculs: [...tableaux(calcul, r), ...tableauAcier(acier), ...blocsResultat(r).map((b): ElementNote => ({ type: 'bloc', bloc: b }))],
     },
     verifications,
     avertissements: [...(r.generation === 2 ? [avertissement2eGeneration()] : []), ...r.alertes.map(phrase)],
-  };
+  } satisfies NoteDeCalcul;
 }

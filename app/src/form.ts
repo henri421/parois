@@ -15,7 +15,11 @@ import {
   type NormeParoi,
   type ResultatParoi,
 } from '../../src/parois';
+import type { DonneesAcier } from '../../src/acier';
 import { T } from './textes';
+
+/** Nuances d'acier admises ; toute autre valeur retombe sur S235. */
+const NUANCES = ['S235', 'S275', 'S355', 'S420', 'S460'] as const;
 
 export interface SaisieCouche {
   nom: string; h: string; gamma: string; gammaSat: string; phi: string; c: string;
@@ -25,6 +29,7 @@ export interface SaisieCouche {
 export interface SaisieAppui {
   nom: string; type: string; z: string; inclinaison: string; entraxe: string;
   effort: string; EA: string; longueur: string; lierne: string;
+  profilButon: string; profilLierne: string;
 }
 
 export interface SaisieCharge {
@@ -41,9 +46,10 @@ export interface Saisie {
   couches: SaisieCouche[]; appuis: SaisieAppui[]; charges: SaisieCharge[];
   generation: '1re' | '2e'; cc: string; approche2: string; profil: string; approche1: string; risque: string;
   gG: string; gQ: string; gPhi: string; gC: string; gCu: string; gRe: string;
+  profilParoi: string; nuance: string; entraxeProfils: string;
 }
 
-export interface Calcul { saisie: Saisie; donnees: DonneesParoi }
+export interface Calcul { saisie: Saisie; donnees: DonneesParoi; acier: DonneesAcier }
 export type Resultat = ResultatParoi;
 export type Lecture = { ok: true; calcul: Calcul } | { ok: false; message: string };
 
@@ -53,7 +59,8 @@ const couche = (nom: string, h: string, gamma: string, gammaSat: string, phi: st
   ({ nom, h, gamma, gammaSat, phi, c, kDeltaA: '2/3', kDeltaP: '2/3', Ka: '', Kp: '' });
 
 export const nouvelAppui = (n: number): SaisieAppui =>
-  ({ nom: `A${n}`, type: 'tirant', z: '1,2', inclinaison: '20', entraxe: '2,5', effort: '', EA: '', longueur: '', lierne: 'continue' });
+  ({ nom: `A${n}`, type: 'tirant', z: '1,2', inclinaison: '20', entraxe: '2,5', effort: '', EA: '', longueur: '', lierne: 'continue',
+    profilButon: '', profilLierne: '' });
 
 export const nouvelleCharge = (): SaisieCharge =>
   ({ type: 'repartie', nature: 'variable', q: '10', a: '1', b: '2', rigide: true, modele: '', H: '10', M: '10', z: '0', z1: '0', z2: '1', p1: '5', p2: '5' });
@@ -73,6 +80,7 @@ export function saisieParDefaut(): Saisie {
     charges: [nouvelleCharge()],
     generation: '2e', cc: 'CC2', approche2: 'a+b', profil: 'recommande', approche1: 'DA1', risque: 'normal',
     gG: '', gQ: '', gPhi: '', gC: '', gCu: '', gRe: '',
+    profilParoi: '', nuance: 'S235', entraxeProfils: '2,5',
   };
 }
 
@@ -162,6 +170,27 @@ function lireNorme(s: Saisie): NormeParoi {
   return { generation: 1, profil: 'recommande', approche: s.approche1 === 'DA2' || s.approche1 === 'DA3' ? s.approche1 : 'DA1' };
 }
 
+const nuanceLue = (brut: string): (typeof NUANCES)[number] =>
+  ((NUANCES as readonly string[]).includes(brut) ? brut : 'S235') as (typeof NUANCES)[number];
+
+/** Entraxe des profils de berlinoise, strictement positif. */
+function entraxeProfils(brut: string): number {
+  const v = nb(brut, T('Entraxe des profilés', 'Pile spacing'));
+  if (!(v > 0)) throw new Refus(T('L’entraxe des profilés doit être strictement positif.', 'The pile spacing must be strictly positive.'));
+  return v;
+}
+
+function lireAcier(s: Saisie): DonneesAcier {
+  const nuance = nuanceLue(s.nuance);
+  const profil = (brut: string): { profil: string; nuance: typeof nuance } | null =>
+    (vide(brut) ? null : { profil: brut.trim(), nuance });
+  return {
+    paroi: vide(s.profilParoi) ? null : { profil: s.profilParoi.trim(), nuance, entraxe: entraxeProfils(s.entraxeProfils) },
+    butons: s.appuis.map((a) => profil(a.profilButon)),
+    liernes: s.appuis.map((a) => profil(a.profilLierne)),
+  };
+}
+
 function lireModifications(s: Saisie): Modifications | undefined {
   const m: Modifications = {};
   const champs: [keyof Modifications, string, string][] = [
@@ -196,7 +225,7 @@ export function lireSaisie(s: Saisie): Lecture {
       norme: lireNorme(s),
       modifications: lireModifications(s),
     };
-    return { ok: true, calcul: { saisie: s, donnees } };
+    return { ok: true, calcul: { saisie: s, donnees, acier: lireAcier(s) } };
   } catch (e) {
     if (e instanceof Refus) return { ok: false, message: e.message };
     throw e;

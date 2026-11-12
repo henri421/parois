@@ -1,6 +1,7 @@
 /** Presentation : listes de saisie, cartes de verdict, volets, blocs de resultats. Mise en forme pure : aucun calcul. */
 
 import { echapper, nombreAffiche, notationHtml, tauxAffiche, type BlocResultat, type LigneResultat } from 'aedificium-ui';
+import { verifierAcier, type ElementAcier } from '../../src/acier';
 import { modeleBande, type Calcul, type Resultat, type Saisie } from './form';
 import { phrase, T } from './textes';
 
@@ -31,6 +32,8 @@ export const hypotheses = (): string[] => [
     'Waler: T·a²/10 if continuous, T·a²/8 simply supported, a choice of the tool.'),
   T('Déplacement w : ligne élastique EI·w″ = M sous charges caractéristiques. Indicatif : ni phasage ni rigidité du sol (D.8).',
     'Displacement w: elastic line EI·w″ = M under characteristic loads. Indicative: neither staging nor ground stiffness (D.8).'),
+  T('Acier (EN 1993-1-1, 6.2 et 6.3) : enveloppe des combinaisons. Profilés de berlinoise : M_d, V_d et N_max par mètre multipliés par l’entraxe, longueurs de flambement et de déversement égales à la longueur de la paroi. Buton : compression maximale seule, sur sa longueur libre. Lierne : M de la lierne, V = 0,6 R_h·a si continue ou 0,5 R_h·a sur deux appuis, longueurs égales à l’entraxe. C1 = 1, déversement non empêché, poids propre négligé ; choix de l’outil.',
+    'Steel (EN 1993-1-1, 6.2 and 6.3): envelope of the combinations. Soldier piles: M_d, V_d and N_max per metre multiplied by the spacing, buckling and lateral-torsional lengths equal to the wall length. Strut: maximum compression only, over its free length. Waler: waler moment, V = 0.6 R_h·a if continuous or 0.5 R_h·a if simply supported, lengths equal to the spacing. C1 = 1, lateral-torsional buckling unrestrained, self-weight neglected; a choice of the tool.'),
 ];
 
 export function nomCombinaison(nom: string): string {
@@ -95,6 +98,8 @@ export const appuisHtml = (s: Saisie): string => (s.appuis.length === 0
       ['deux-appuis', T('Sur deux appuis : T·a²/8', 'Simply supported: T·a²/8')],
       ['aucune', T('Aucune', 'None')],
     ]) +
+    champ(T('Profilé du buton', 'Strut section'), 'appuis', i, 'profilButon', a.profilButon, T('aucun', 'none')) +
+    champ(T('Profilé de la lierne', 'Waler section'), 'appuis', i, 'profilLierne', a.profilLierne, T('aucun', 'none')) +
     '</div>').join(''));
 
 export const chargesHtml = (s: Saisie): string => {
@@ -135,10 +140,10 @@ export const chargesHtml = (s: Saisie): string => {
 // Verdicts
 // -------------------------------------------------------------------------------------------------
 
-function carteTaux(titre: string, clause: string, taux: number, corps: string, gouvernant: boolean): string {
+function carteTaux(titre: string, clause: string, taux: number, corps: string, gouvernant: boolean, verification: 'rotation' | 'acier' = 'rotation'): string {
   const classe = Number.isFinite(taux) && taux <= 1 ? 'ok' : 'refus';
   const largeur = Number.isFinite(taux) ? Math.min(100, Math.max(0, taux * 100)) : 100;
-  return `<div class="verdict ${classe}" data-verification="rotation"><h3><span>${sym(titre)}${gouvernant ? ` · ${T('gouvernant', 'governing')}` : ''}</span> <span class="clause">${clause}</span></h3>` +
+  return `<div class="verdict ${classe}" data-verification="${verification}"><h3><span>${sym(titre)}${gouvernant ? ` · ${T('gouvernant', 'governing')}` : ''}</span> <span class="clause">${clause}</span></h3>` +
     `<div class="jauge"><i style="width:${largeur.toFixed(1)}%"></i></div><span class="taux">${tauxAffiche(taux)}</span><p>${corps}</p></div>`;
 }
 
@@ -154,6 +159,17 @@ const texteFiche = (c: Calcul, x: Combi): string => {
   const m = aff(x.ficheMinimale, 2);
   return T(`Part de butée mobilisée. Fiche réelle ${reelle} m ; minimum ${m} m.`,
     `Share of passive resistance mobilised. Actual embedment ${reelle} m; minimum ${m} m.`);
+};
+
+export const titreAcier = (e: ElementAcier): string => (e.type === 'paroi'
+  ? T('Profilés de berlinoise', 'Soldier piles')
+  : e.type === 'buton' ? `${T('Buton', 'Strut')} ${e.nom}` : `${T('Lierne', 'Waler')} ${e.nom}`);
+
+const corpsAcier = (e: ElementAcier): string => {
+  const erreur = e.erreur === 'profil' ? T('Profilé absent du catalogue.', 'Section not in the catalogue.')
+    : e.erreur === 'longueur' ? T('Longueur libre du buton à renseigner.', 'Free length of the strut required.') : '';
+  const nombres = `${echapper(e.profil)} ${e.nuance}${T(' : ', ': ')}N = ${aff(e.N, 1)} kN${T(' ; ', '; ')}M = ${aff(e.M, 1)} kN·m${T(' ; ', '; ')}V = ${aff(e.V, 1)} kN${T(' ; ', '; ')}L = ${aff(e.longueur, 2)} m.`;
+  return erreur === '' ? nombres : `${nombres} ${erreur}`;
 };
 
 export function verdictsHtml(c: Calcul, r: Resultat): string {
@@ -177,6 +193,11 @@ export function verdictsHtml(c: Calcul, r: Resultat): string {
       `${sym('R_h')} = ${Rh} kN/m; axial force ${T_} kN per support at ${e} m spacing.`) + impose + lierne;
     h += constat(`${T('Appui', 'Support')} ${a.nom}`, cl.appui, T(corps, corps.replace(' :', ':')));
   });
+  const elementsAcier = verifierAcier(c.donnees, r, c.acier);
+  if (elementsAcier.length > 0) {
+    h += `<div class="groupe">${T('Acier, EN 1993-1-1', 'Steel, EN 1993-1-1')}</div>`;
+    for (const e of elementsAcier) h += carteTaux(titreAcier(e), '6.2, 6.3', e.taux === null ? Infinity : e.taux, corpsAcier(e), false, 'acier');
+  }
   const s = r.service;
   h += `<div class="groupe">Service</div>`;
   h += constat(T('Déplacement', 'Displacement'), cl.service, T(

@@ -27,6 +27,9 @@
             <label class="ligne"><span>Total length L (m)</span><input type="text" inputmode="decimal" data-champ="L" /></label>
             <label class="ligne"><span>Stiffness EI (kN·m²/m)</span><input type="text" inputmode="decimal" data-champ="EI" /></label>
             <label class="ligne"><span>Stiffness EA (kN/m)</span><input type="text" inputmode="decimal" data-champ="EA" /></label>
+            <label class="ligne"><span>Soldier pile section</span><input type="text" data-champ="profilParoi" placeholder="none" /></label>
+            <label class="ligne"><span>Steel grade</span><select data-champ="nuance"><option value="S235">S235</option><option value="S275">S275</option><option value="S355">S355</option><option value="S420">S420</option><option value="S460">S460</option></select></label>
+            <label class="ligne"><span>Pile spacing (m)</span><input type="text" inputmode="decimal" data-champ="entraxeProfils" /></label>
             <label class="ligne"><span>Toe fixity (%)</span><input type="text" inputmode="decimal" data-champ="degre" /></label>
             <span class="source">0 %: free toe. 100 %: fixed toe, embedment increased by 20 %.</span>
             <div class="boutons"><button type="button" data-action="trouver-fiche">Find the minimum embedment</button></div>
