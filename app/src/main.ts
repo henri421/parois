@@ -1,6 +1,6 @@
 /** Cablage de l'interface des parois. Ne calcule rien : tient la saisie, appelle le noyau par `form`. */
 
-import { blocsEnTexte, definirLangue, langueDuDocument, noteDeCalculHtml, notationHtml, ouvrirOuTelecharger, resultatsEnCsv, svgAutonome, telecharger } from 'aedificium-ui';
+import { avertissement2eGeneration, blocsEnTexte, definirLangue, langueDuDocument, noteDeCalculHtml, notationHtml, ouvrirOuTelecharger, resultatsEnCsv, svgAutonome, telecharger } from 'aedificium-ui';
 import { coupeEtDiagrammes, type OptionsDessin } from './dessin';
 import { lireSaisie, longueurProposee, nouvelAppui, nouvelleCharge, relire, saisieParDefaut, serialiser, verifier, type Calcul, type Resultat, type Saisie } from './form';
 import { noteDuCalcul } from './note';
@@ -63,6 +63,11 @@ function montrerErreur(m: string | null): void {
 function ajusterAffichage(): void {
   for (const b of formulaire.querySelectorAll<HTMLButtonElement>('[data-generation]')) {
     b.setAttribute('aria-pressed', String(b.dataset.generation === saisie.generation));
+  }
+  const bandeau = document.querySelector<HTMLElement>('[data-role="bandeau-2e-gen"]');
+  if (bandeau !== null) {
+    bandeau.hidden = saisie.generation !== '2e';
+    bandeau.textContent = avertissement2eGeneration();
   }
   const conditions: [string, string][] = [['data-si-generation', saisie.generation], ['data-si-profil', saisie.profil], ['data-si-forme', saisie.forme]];
   for (const [attribut, valeur] of conditions) {

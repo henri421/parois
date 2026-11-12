@@ -1,6 +1,6 @@
 /** Contenu de la note de calcul commune (`noteDeCalculHtml` d'aedificium-ui). PUR : aucun calcul. */
 
-import { nombreAffiche, tauxAffiche, type ElementNote, type LigneResultat, type NoteDeCalcul, type VerificationNote } from 'aedificium-ui';
+import { avertissement2eGeneration, nombreAffiche, tauxAffiche, type ElementNote, type LigneResultat, type NoteDeCalcul, type VerificationNote } from 'aedificium-ui';
 import { coupeEtDiagrammes } from './dessin';
 import type { Calcul, Resultat } from './form';
 import { phrase, T } from './textes';
@@ -128,6 +128,6 @@ export function noteDuCalcul(calcul: Calcul, r: Resultat, cartouche: { projet: s
       calculs: [...tableaux(calcul, r), ...blocsResultat(r).map((b): ElementNote => ({ type: 'bloc', bloc: b }))],
     },
     verifications,
-    avertissements: r.alertes.map(phrase),
+    avertissements: [...(r.generation === 2 ? [avertissement2eGeneration()] : []), ...r.alertes.map(phrase)],
   };
 }
