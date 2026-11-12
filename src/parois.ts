@@ -16,7 +16,7 @@ import {
   type Risque,
 } from 'sol-ec7';
 
-const GAMMA_W = 10;
+export const GAMMA_W = 10;
 /** Raideur d'un appui declare rigide (kN/m par metre de paroi). */
 const RIGIDE = 1e10;
 const PAS = 0.05;
@@ -102,6 +102,10 @@ export interface DonneesParoi {
   redistribution: Redistribution;
   norme: NormeParoi;
   modifications?: Modifications;
+  /** Largeur B et longueur de la fouille (m), pour le soulevement du fond ; null = non saisie / infinie. */
+  fouille?: { B: number | null; longueur: number | null };
+  /** Poids propre de la paroi (kN par metre de paroi), pour l'equilibre vertical ; 0 par defaut. */
+  poidsParoi?: number;
 }
 
 export interface CoefficientApplique {
@@ -224,7 +228,7 @@ export function pressionBandeCoin(q: number, a: number, b: number, z: number, Ka
 // Jeux de coefficients
 // -------------------------------------------------------------------------------------------------
 
-interface Jeu {
+export interface Jeu {
   nom: string;
   gG: number;
   gQ: number;
@@ -305,6 +309,11 @@ function jeux(n: NormeParoi): Jeu[] {
   });
 }
 
+/** Jeux de coefficients des combinaisons, dans l'ordre de ResultatParoi.combinaisons. */
+export function jeuxParoi(d: DonneesParoi): Jeu[] {
+  return jeux(d.norme).map((j) => appliquerModifications(j, d.modifications));
+}
+
 function appliquerModifications(j: Jeu, m: Modifications | undefined): Jeu {
   if (m === undefined) return j;
   const copie = { ...j, coefficients: [...j.coefficients] };
@@ -327,7 +336,7 @@ const SERVICE: Jeu = { nom: 'caractéristique', gG: 1, gQ: 1, gE: 1, gPhi: 1, gC
 // Pressions
 // -------------------------------------------------------------------------------------------------
 
-function coucheEn(d: DonneesParoi, z: number): Couche {
+export function coucheEn(d: DonneesParoi, z: number): Couche {
   let t = 0;
   for (const c of d.couches) {
     t += c.h;
@@ -337,7 +346,7 @@ function coucheEn(d: DonneesParoi, z: number): Couche {
 }
 
 /** Poids des terres entre deux profondeurs, nappe zw ; la derniere couche se prolonge. */
-function poids(d: DonneesParoi, z1: number, z2: number, zw: number): number {
+export function poids(d: DonneesParoi, z1: number, z2: number, zw: number): number {
   let total = 0;
   let t = 0;
   d.couches.forEach((c, i) => {
@@ -353,20 +362,20 @@ function poids(d: DonneesParoi, z1: number, z2: number, zw: number): number {
   return total;
 }
 
-function gradientHydraulique(d: DonneesParoi, L: number): number {
+export function gradientHydraulique(d: DonneesParoi, L: number): number {
   const { zTerre, zFouille, ecoulement } = d.eau;
   if (!ecoulement || zFouille <= zTerre) return 0;
   return (zFouille - zTerre) / (L - zTerre + (L - zFouille));
 }
 
-interface Pressions {
+export interface Pressions {
   eG: number;
   eQ: number;
   eau: number;
   butee: number;
 }
 
-function pressionsEn(d: DonneesParoi, j: Jeu, z: number, eps: number, L: number): Pressions {
+export function pressionsEn(d: DonneesParoi, j: Jeu, z: number, eps: number, L: number): Pressions {
   const c = coucheEn(d, z + eps);
   const i = gradientHydraulique(d, L);
   const { zTerre, zFouille } = d.eau;

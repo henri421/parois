@@ -86,3 +86,43 @@ Tests : bloc « T3 » de `tests/app/acier.test.ts` (3 tests), suite complète et
 ### Interdits à l'exécutant
 
 Modifier `src/`, les tests, `package.json`, le lockfile ; parcourir d'autres dépôts ; pousser.
+
+## Lot fond (13/11/2026) : soulèvement hydraulique, soulèvement du fond, équilibre vertical
+
+T1 (fait par la séance Claude) : `src/fond.ts`, `verifierFond(d, r): ResultatFond` ; tests `tests/fond.test.ts`.
+Nouveaux champs facultatifs de `DonneesParoi` : `fouille?: { B: number|null; longueur: number|null }`, `poidsParoi?: number`.
+`ResultatFond = { hyd: VerificationHyd|null ; fond: {applicable:false, motif:'draine'|'largeur'} | {applicable:true, combinaisons: FondCombinaison[]} ; vertical: VerticalCombinaison[] }`
+(lire l'en-tête et les interfaces de `src/fond.ts`, lignes 1 à 75). Choix : HYD au pied côté fouille ; Bjerrum et Eide en
+sol fin non drainé, aussi en 1re génération ; D.12 intégré sur toute la hauteur ; γR = γRe pour le fond.
+
+### T2 : saisie, écran et note (exécutant, un seul lancement)
+
+Fichiers : `app/src/form.ts`, `app/src/vue.ts`, `app/src/note.ts`, `app/index.html`, `app/en/index.html`. Ne pas toucher `src/`.
+- `Saisie` : `largeurFouille`, `longueurFouille`, `poidsParoi` (défauts ''). `lireSaisie` : `donnees.fouille = { B, longueur }`
+  (vide = null, sinon `nb` puis refus si <= 0 : T('La largeur de fouille doit être strictement positive.', 'The excavation width must be strictly positive.'),
+  T('La longueur de fouille doit être strictement positive.', 'The excavation length must be strictly positive.')) ;
+  `donnees.poidsParoi` = 0 si vide, refus si < 0 : T('Le poids de la paroi ne peut pas être négatif.', 'The wall weight cannot be negative.').
+- Pages : dans « Paroi et excavation », après la ligne `data-champ="degre"` et sa ligne `span.source` (ligne 33-34), trois `label.ligne` :
+  « Largeur de fouille B (m) » placeholder « non saisie », « Longueur de fouille (m) » placeholder « infinie »,
+  « Poids de la paroi (kN/m) » placeholder « 0 ». Anglais : « Excavation width B (m) » / « not given », « Excavation length (m) » / « infinite »,
+  « Wall weight (kN/m) » / « 0 ». Inputs `type="text" inputmode="decimal"`.
+- `verdictsHtml` (vue.ts, ligne 175) : avant le groupe « Service » (ligne 201), groupe
+  T('Fond de fouille et équilibre vertical', 'Excavation base and vertical equilibrium') avec `verifierFond(c.donnees, r)` :
+  - si `hyd` : `carteTaux(T('Soulèvement hydraulique', 'Hydraulic heave'), clause, taux, corps, false, 'hyd')`, clause
+    'EN 1997-1:2024, 8.1.4.2' (2e gén.) ou 'EN 1997-1:2004, 2.4.7.5' (1re) ; corps `i = .. ; Δu = .. kPa ; σ′v0 = .. kPa.`
+    (élargir le type du paramètre de `carteTaux` aux valeurs 'hyd', 'fond', 'vertical') ;
+  - si `fond.applicable` : une carte par combinaison, titre `${T('Soulèvement du fond', 'Basal heave')} · ${nomCombinaison(nom)}`,
+    clause '7.6.6, D.24', data 'fond', corps `N_c = .. ; c_u,d = .. kPa ; E_d = .. kPa ; R_d = .. kPa.` (symboles par `sym`) ;
+    si motif 'largeur' : `constat(T('Soulèvement du fond', 'Basal heave'), '7.6.6, D.24', T('Largeur de fouille non saisie : soulèvement du fond non vérifié.',
+    'Excavation width not given: basal heave not checked.'))` ; motif 'draine' : rien ;
+  - une carte par combinaison `${T('Équilibre vertical', 'Vertical equilibrium')} · ${nomCombinaison(nom)}`, data 'vertical',
+    clause '7.6.4, D.12' (2e) ou 'EN 1997-1:2004, 9.7.5' (1re) ; corps : butée vers le haut, puis appuis, poussée, poids vers le bas
+    (kN/m), puis force nette en pied à reprendre (renvoi à l'outil Pieux), en français et en anglais.
+- `hypotheses()` : deux lignes FR/EN reprenant l'en-tête de `src/fond.ts` (HYD avec 0,67 en 2e génération et 1,35 / 0,90 en 1re ;
+  Bjerrum et Eide, D.24 à D.26, sol fin non drainé seulement ; D.12 sur toute la hauteur, choix de l'outil).
+- `noteDuCalcul` : verifications ajoutées avec les mêmes titres que l'écran (HYD : nom exactement le titre seul), mêmes clauses,
+  `ok: taux <= 1`.
+- Anglais : aucun mot de la regex FRANCAIS de `tests/app/fond.test.ts` à l'écran ni dans la note.
+Tests : `ELECTRON_RUN_AS_NODE=1 Code.exe ../_banc-local/lancer.mjs . fond` (20 tests), puis suite complète et `typecheck.mjs .` (0 erreur).
+
+Interdits : `src/`, les tests, `package.json`, le lockfile, les autres dépôts ; pas de push.
