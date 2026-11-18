@@ -43,3 +43,28 @@
 - `ELECTRON_RUN_AS_NODE=1 Code.exe ../_banc-local/lancer.mjs . acier` : `tests/app/acier.test.ts` **11/11**, `tests/acier.test.ts` 6/6, total 17 réussis, 0 échec.
 - `ELECTRON_RUN_AS_NODE=1 Code.exe ../_banc-local/lancer.mjs .` (suite complète) : **66 réussis, 0 échec**.
 - `ELECTRON_RUN_AS_NODE=1 Code.exe ../_banc-local/typecheck.mjs .` : **0 erreur**.
+
+## Lot fond, T2
+
+**Fichiers modifiés**
+- `app/src/form.ts` : champs `largeurFouille`, `longueurFouille`, `poidsParoi` dans `Saisie` et `saisieParDefaut` ; `lireFouille` (vide = non saisie, sinon strictement positif) et `lirePoids` (vide = 0, refus si négatif) alimentent `donnees.fouille` et `donnees.poidsParoi`. `relire` inchangé : `fusion` conserve les nouveaux champs et prend les défauts pour les fichiers anciens.
+- `app/src/vue.ts` : import de `verifierFond` ; `carteTaux` accepte `'hyd' | 'fond' | 'vertical'` ; `clauses` exportée, avec les clauses `hyd`, `fond`, `vertical` ; deux lignes d'hypothèses FR/EN (soulèvement hydraulique, soulèvement du fond et équilibre vertical) ; groupe « Fond de fouille et équilibre vertical » entre l'acier et le service.
+- `app/src/note.ts` : vérifications hyd, fond et équilibre vertical ajoutées à `verifications`, mêmes titres et clauses que l'écran.
+- `app/index.html`, `app/en/index.html` : trois lignes de saisie après le `span.source` de l'encastrement.
+
+**Décisions**
+- `0,90` écrit `0,9` (même valeur) : le contrôle d'affichage signale le zéro de fin de décimale.
+- Carte « Équilibre vertical » par combinaison, corps FR/EN : butée vers le haut, puis appuis, poussée, poids, force nette en pied renvoyée à l'outil Pieux.
+- Constat « Largeur de fouille non saisie » seulement à l'écran, pas dans la note (le plan ne le demande pas pour la note).
+- Titres des vérifications de la note avec « · » comme à l'écran (pas la virgule des rotations).
+
+**Points douteux**
+- CONFLIT ENTRE TESTS, non résolu : `tests/app/interface.test.ts:73` attend `n.verifications.length === 2` pour le cas par défaut, alors que `tests/app/fond.test.ts` exige, pour ce même cas, une vérification « Soulèvement hydraulique » dans la note. Le cas par défaut en produit 5 (2 rotations, 1 hydraulique, 2 équilibres verticaux). Aucune implémentation conforme au plan ne satisfait les deux : les tests doivent être arbitrés (nouveau compte attendu dans `interface.test.ts`, ou exclusion des vérifications de fond de la note). Non modifié, par consigne.
+- Le PLAN annonce 20 tests pour `fond` ; le fichier en contient 11.
+- Non vérifié dans le navigateur : un serveur de l'app existe, mais la consigne interdit d'en lancer un.
+- Commandes lancées avec `npx` (le `Code.exe` du PLAN étant ancien, comme indiqué).
+
+**Statut des tests**
+- `npx vitest run tests/app/fond.test.ts` : **11 réussis, 0 échec** (après la correction 0,9).
+- `npx vitest run --maxWorkers=2` (suite complète) : **85 réussis, 1 échec** sur 86 ; l'échec est `tests/app/interface.test.ts:73` (« expected 5 to be 2 »), conflit décrit ci-dessus.
+- `npx tsc --noEmit -p .` : **sortie 0, aucune erreur**.

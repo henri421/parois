@@ -2,6 +2,7 @@
 
 import { echapper, nombreAffiche, notationHtml, tauxAffiche, type BlocResultat, type LigneResultat } from 'aedificium-ui';
 import { verifierAcier, type ElementAcier } from '../../src/acier';
+import { verifierFond } from '../../src/fond';
 import { modeleBande, type Calcul, type Resultat, type Saisie } from './form';
 import { phrase, T } from './textes';
 
@@ -32,6 +33,10 @@ export const hypotheses = (): string[] => [
     'Waler: T·a²/10 if continuous, T·a²/8 simply supported, a choice of the tool.'),
   T('Déplacement w : ligne élastique EI·w″ = M sous charges caractéristiques. Indicatif : ni phasage ni rigidité du sol (D.8).',
     'Displacement w: elastic line EI·w″ = M under characteristic loads. Indicative: neither staging nor ground stiffness (D.8).'),
+  T('Soulèvement hydraulique au pied, côté fouille : Δu = i·γw·(L − z_fouille) comparé à 0,67 fois la contrainte verticale effective (2e génération, EN 1997-1:2024, 8.1.4.2) ; 1re génération : γG;dst = 1,35 sur Δu et γG;stb = 0,9 sur le poids déjaugé (EN 1997-1:2004, 2.4.7.5).',
+    'Hydraulic heave at the toe, excavation side: Δu = i·γw·(L − z_excavation) compared with 0.67 times the effective vertical stress (2nd generation, EN 1997-1:2024, 8.1.4.2); 1st generation: γG;dst = 1.35 on Δu and γG;stb = 0.9 on the submerged weight (EN 1997-1:2004, 2.4.7.5).'),
+  T('Soulèvement du fond en sol fin non drainé seulement : Bjerrum et Eide, formules D.24 à D.26 ; charges, γcu et γRe selon chaque combinaison. Équilibre vertical : D.12 intégré sur toute la hauteur, choix de l’outil.',
+    'Basal heave in undrained fine soil only: Bjerrum and Eide, formulas D.24 to D.26; actions, γcu and γRe per combination. Vertical equilibrium: D.12 integrated over the full height, a choice of the tool.'),
   T('Acier (EN 1993-1-1, 6.2 et 6.3) : enveloppe des combinaisons. Profilés de berlinoise : M_d, V_d et N_max par mètre multipliés par l’entraxe, longueurs de flambement et de déversement égales à la longueur de la paroi. Buton : compression maximale seule, sur sa longueur libre. Lierne : M de la lierne, V = 0,6 R_h·a si continue ou 0,5 R_h·a sur deux appuis, longueurs égales à l’entraxe. C1 = 1, déversement non empêché, poids propre négligé ; choix de l’outil.',
     'Steel (EN 1993-1-1, 6.2 and 6.3): envelope of the combinations. Soldier piles: M_d, V_d and N_max per metre multiplied by the spacing, buckling and lateral-torsional lengths equal to the wall length. Strut: maximum compression only, over its free length. Waler: waler moment, V = 0.6 R_h·a if continuous or 0.5 R_h·a if simply supported, lengths equal to the spacing. C1 = 1, lateral-torsional buckling unrestrained, self-weight neglected; a choice of the tool.'),
 ];
@@ -43,9 +48,11 @@ export function nomCombinaison(nom: string): string {
   return nom;
 }
 
-const clauses = (g: 1 | 2) => (g === 2
-  ? { rotation: T('EN 1997-3:2025, 7.6.3 et D.8', 'EN 1997-3:2025, 7.6.3 and D.8'), paroi: '7.6.8', appui: '7.6.7', service: T('7.7 et D.8', '7.7 and D.8'), eau: '7.6.6' }
-  : { rotation: 'EN 1997-1:2004, 9.7.4', paroi: '9.7.6', appui: '9.7.7', service: '9.8', eau: '2.4.7.5' });
+export const clauses = (g: 1 | 2) => (g === 2
+  ? { rotation: T('EN 1997-3:2025, 7.6.3 et D.8', 'EN 1997-3:2025, 7.6.3 and D.8'), paroi: '7.6.8', appui: '7.6.7', service: T('7.7 et D.8', '7.7 and D.8'), eau: '7.6.6',
+    hyd: 'EN 1997-1:2024, 8.1.4.2', fond: '7.6.6, D.24', vertical: '7.6.4, D.12' }
+  : { rotation: 'EN 1997-1:2004, 9.7.4', paroi: '9.7.6', appui: '9.7.7', service: '9.8', eau: '2.4.7.5',
+    hyd: 'EN 1997-1:2004, 2.4.7.5', fond: '7.6.6, D.24', vertical: 'EN 1997-1:2004, 9.7.5' });
 
 export const clauseRotation = (r: Resultat): string => clauses(r.generation).rotation;
 
@@ -140,7 +147,9 @@ export const chargesHtml = (s: Saisie): string => {
 // Verdicts
 // -------------------------------------------------------------------------------------------------
 
-function carteTaux(titre: string, clause: string, taux: number, corps: string, gouvernant: boolean, verification: 'rotation' | 'acier' = 'rotation'): string {
+type Verification = 'rotation' | 'acier' | 'hyd' | 'fond' | 'vertical';
+
+function carteTaux(titre: string, clause: string, taux: number, corps: string, gouvernant: boolean, verification: Verification = 'rotation'): string {
   const classe = Number.isFinite(taux) && taux <= 1 ? 'ok' : 'refus';
   const largeur = Number.isFinite(taux) ? Math.min(100, Math.max(0, taux * 100)) : 100;
   return `<div class="verdict ${classe}" data-verification="${verification}"><h3><span>${sym(titre)}${gouvernant ? ` · ${T('gouvernant', 'governing')}` : ''}</span> <span class="clause">${clause}</span></h3>` +
@@ -197,6 +206,28 @@ export function verdictsHtml(c: Calcul, r: Resultat): string {
   if (elementsAcier.length > 0) {
     h += `<div class="groupe">${T('Acier, EN 1993-1-1', 'Steel, EN 1993-1-1')}</div>`;
     for (const e of elementsAcier) h += carteTaux(titreAcier(e), '6.2, 6.3', e.taux === null ? Infinity : e.taux, corpsAcier(e), false, 'acier');
+  }
+  const fond = verifierFond(c.donnees, r);
+  h += `<div class="groupe">${T('Fond de fouille et équilibre vertical', 'Excavation base and vertical equilibrium')}</div>`;
+  if (fond.hyd !== null) {
+    const v = fond.hyd;
+    h += carteTaux(T('Soulèvement hydraulique', 'Hydraulic heave'), cl.hyd, v.taux,
+      `i = ${aff(v.gradient, 3)}${T(' ; ', '; ')}Δu = ${aff(v.du, 1)} kPa${T(' ; ', '; ')}${sym('σ′_v0')} = ${aff(v.sigma, 1)} kPa.`, false, 'hyd');
+  }
+  if (fond.fond.applicable) {
+    for (const x of fond.fond.combinaisons) {
+      const corps = `${sym('N_c')} = ${aff(x.Nc, 2)}${T(' ; ', '; ')}${sym('c_u,d')} = ${aff(x.cu, 1)} kPa${T(' ; ', '; ')}${sym('E_d')} = ${aff(x.Ed, 1)} kPa${T(' ; ', '; ')}${sym('R_d')} = ${aff(x.Rd, 1)} kPa.`;
+      h += carteTaux(`${T('Soulèvement du fond', 'Basal heave')} · ${nomCombinaison(x.combinaison)}`, cl.fond, x.taux, corps, false, 'fond');
+    }
+  } else if (fond.fond.motif === 'largeur') {
+    h += constat(T('Soulèvement du fond', 'Basal heave'), cl.fond,
+      T('Largeur de fouille non saisie : soulèvement du fond non vérifié.', 'Excavation width not given: basal heave not checked.'));
+  }
+  for (const v of fond.vertical) {
+    const corps = T(
+      `Butée vers le haut ${aff(v.buteeHaut, 1)} kN/m ; vers le bas : appuis ${aff(v.appuisBas, 1)}, poussée ${aff(v.pousseeBas, 1)}, poids de la paroi ${aff(v.poidsParoi, 1)} kN/m ; force nette en pied à reprendre ${aff(v.netBas, 1)} kN/m (outil Pieux).`,
+      `Passive resistance upwards ${aff(v.buteeHaut, 1)} kN/m; downwards: supports ${aff(v.appuisBas, 1)}, earth thrust ${aff(v.pousseeBas, 1)}, wall weight ${aff(v.poidsParoi, 1)} kN/m; net force at the toe to be resisted ${aff(v.netBas, 1)} kN/m (Piles tool).`);
+    h += carteTaux(`${T('Équilibre vertical', 'Vertical equilibrium')} · ${nomCombinaison(v.combinaison)}`, cl.vertical, v.taux, corps, false, 'vertical');
   }
   const s = r.service;
   h += `<div class="groupe">Service</div>`;

@@ -47,6 +47,7 @@ export interface Saisie {
   generation: '1re' | '2e'; cc: string; approche2: string; profil: string; approche1: string; risque: string;
   gG: string; gQ: string; gPhi: string; gC: string; gCu: string; gRe: string;
   profilParoi: string; nuance: string; entraxeProfils: string;
+  largeurFouille: string; longueurFouille: string; poidsParoi: string;
 }
 
 export interface Calcul { saisie: Saisie; donnees: DonneesParoi; acier: DonneesAcier }
@@ -81,6 +82,7 @@ export function saisieParDefaut(): Saisie {
     generation: '2e', cc: 'CC2', approche2: 'a+b', profil: 'recommande', approche1: 'DA1', risque: 'normal',
     gG: '', gQ: '', gPhi: '', gC: '', gCu: '', gRe: '',
     profilParoi: '', nuance: 'S235', entraxeProfils: '2,5',
+    largeurFouille: '', longueurFouille: '', poidsParoi: '',
   };
 }
 
@@ -191,6 +193,22 @@ function lireAcier(s: Saisie): DonneesAcier {
   };
 }
 
+/** Fouille : largeur et longueur facultatives (vides = non saisies), strictement positives si renseignees. */
+function lireFouille(s: Saisie): { B: number | null; longueur: number | null } {
+  const B = option(s.largeurFouille, T('Largeur de fouille', 'Excavation width'));
+  if (B !== null && !(B > 0)) throw new Refus(T('La largeur de fouille doit être strictement positive.', 'The excavation width must be strictly positive.'));
+  const longueur = option(s.longueurFouille, T('Longueur de fouille', 'Excavation length'));
+  if (longueur !== null && !(longueur > 0)) throw new Refus(T('La longueur de fouille doit être strictement positive.', 'The excavation length must be strictly positive.'));
+  return { B, longueur };
+}
+
+/** Poids propre de la paroi (kN/m), zero si vide, positif ou nul. */
+function lirePoids(s: Saisie): number {
+  const p = option(s.poidsParoi, T('Poids de la paroi', 'Wall weight')) ?? 0;
+  if (p < 0) throw new Refus(T('Le poids de la paroi ne peut pas être négatif.', 'The wall weight cannot be negative.'));
+  return p;
+}
+
 function lireModifications(s: Saisie): Modifications | undefined {
   const m: Modifications = {};
   const champs: [keyof Modifications, string, string][] = [
@@ -224,6 +242,8 @@ export function lireSaisie(s: Saisie): Lecture {
       charges: s.charges.map(lireCharge),
       norme: lireNorme(s),
       modifications: lireModifications(s),
+      fouille: lireFouille(s),
+      poidsParoi: lirePoids(s),
     };
     return { ok: true, calcul: { saisie: s, donnees, acier: lireAcier(s) } };
   } catch (e) {

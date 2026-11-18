@@ -2,10 +2,11 @@
 
 import { avertissement2eGeneration, nombreAffiche, tauxAffiche, type ElementNote, type LigneResultat, type NoteDeCalcul, type VerificationNote } from 'aedificium-ui';
 import { verifierAcier, type ElementAcier } from '../../src/acier';
+import { verifierFond } from '../../src/fond';
 import { coupeEtDiagrammes } from './dessin';
 import type { Calcul, Resultat } from './form';
 import { phrase, T } from './textes';
-import { aff, blocsResultat, clauseRotation, entreesParSection, hypotheses, nature, nomCombinaison, titreAcier } from './vue';
+import { aff, blocsResultat, clauseRotation, clauses, entreesParSection, hypotheses, nature, nomCombinaison, titreAcier } from './vue';
 import { VERSION_OUTIL } from './version';
 
 const bloc = (titre: string, lignes: LigneResultat[]): ElementNote => ({ type: 'bloc', bloc: { titre, lignes, note: null } });
@@ -83,6 +84,8 @@ export function noteDuCalcul(calcul: Calcul, r: Resultat, cartouche: { projet: s
   const e = entreesParSection(calcul);
   const figure = coupeEtDiagrammes(calcul, r, { q: true, V: true, M: true, w: true, cotes: true, combinaison: r.gouvernant.combinaison });
   const acier = verifierAcier(calcul.donnees, r, calcul.acier);
+  const fond = verifierFond(calcul.donnees, r);
+  const cl = clauses(r.generation);
   const verifications: (VerificationNote & { taux: number })[] = [
     ...r.combinaisons.map((x) => ({
       nom: `Rotation, ${nomCombinaison(x.nom)}`,
@@ -95,6 +98,24 @@ export function noteDuCalcul(calcul: Calcul, r: Resultat, cartouche: { projet: s
       clause: 'EN 1993-1-1, 6.2 ; 6.3',
       taux: x.taux ?? NaN,
       ok: x.taux !== null && x.taux <= 1,
+    })),
+    ...(fond.hyd === null ? [] : [{
+      nom: T('Soulèvement hydraulique', 'Hydraulic heave'),
+      clause: cl.hyd,
+      taux: fond.hyd.taux,
+      ok: fond.hyd.taux <= 1,
+    }]),
+    ...(fond.fond.applicable ? fond.fond.combinaisons.map((x) => ({
+      nom: `${T('Soulèvement du fond', 'Basal heave')} · ${nomCombinaison(x.combinaison)}`,
+      clause: cl.fond,
+      taux: x.taux,
+      ok: x.taux <= 1,
+    })) : []),
+    ...fond.vertical.map((v) => ({
+      nom: `${T('Équilibre vertical', 'Vertical equilibrium')} · ${nomCombinaison(v.combinaison)}`,
+      clause: cl.vertical,
+      taux: v.taux,
+      ok: v.taux <= 1,
     })),
   ];
   const nf = (v: number | null): string => (v === null ? 'auto' : nombreAffiche(v, 3));

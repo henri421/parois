@@ -70,7 +70,8 @@ describe('sorties', () => {
   });
   it('note : chaque combinaison verifiee, sections remplies', () => {
     const n = noteDuCalcul(c, r, { projet: 'P', element: '', date: '2026-11-09' });
-    expect(n.verifications.length).toBe(2);
+    // Depuis le lot fond, la note compte aussi HYD, le fond et l equilibre vertical : on compte les rotations.
+    expect(n.verifications.filter((v) => v.nom.startsWith('Rotation')).length).toBe(2);
     expect(n.sections.geometrie!.length).toBeGreaterThan(1);
     expect(n.sections.calculs!.length).toBeGreaterThan(2);
     expect(n.cartouche.outil).toBe('parois');
