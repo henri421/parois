@@ -13,7 +13,9 @@ import {
   profilAnb2022,
   type Approche,
   type ClasseConsequences,
+  type Profil1g,
   type Risque,
+  type ValeurSourcee,
 } from 'sol-ec7';
 
 export const GAMMA_W = 10;
@@ -73,8 +75,22 @@ export interface Redistribution {
 
 export type NormeParoi =
   | { generation: 2; cc: ClasseConsequences; approche: 'a+b' | 'd' }
-  | { generation: 1; profil: 'recommande'; approche: Approche }
+  | {
+    generation: 1; profil: 'recommande'; approche: Approche;
+    /** Profil 1re generation fourni par l'app (annexe nationale, lot E) ; a defaut, profil recommande. */
+    profil1g?: Profil1g;
+    /** γ_R;e de la butee par jeu (tableau A.13) ; a defaut, valeurs recommandees 1,0 / 1,4 / 1,0. */
+    buteeRe?: { R1: ValeurSourcee; R2: ValeurSourcee; R3: ValeurSourcee };
+  }
   | { generation: 1; profil: 'anb'; risque: Risque };
+
+const SOURCE_A13 = 'EN 1997-1:2004, tableau A.13, valeur recommandée';
+/** γ_R;e de la butee, tableau A.13 de l'EN 1997-1:2004 : valeurs recommandees. */
+export const BUTEE_RE_RECOMMANDEE: { R1: ValeurSourcee; R2: ValeurSourcee; R3: ValeurSourcee } = {
+  R1: { valeur: 1, source: SOURCE_A13 },
+  R2: { valeur: 1.4, source: SOURCE_A13 },
+  R3: { valeur: 1, source: SOURCE_A13 },
+};
 
 /** Coefficients modifies a la main : remplacent ceux de la bibliotheque. */
 export interface Modifications {
@@ -286,9 +302,11 @@ function jeux(n: NormeParoi): Jeu[] {
   }
   const combis = n.profil === 'anb'
     ? combinaisons1g('DA1', profilAnb2022(n.risque))
-    : combinaisons1g(n.approche, profil1g());
+    : combinaisons1g(n.approche, n.profil1g ?? profil1g());
+  const butee = (n.profil === 'recommande' ? n.buteeRe : undefined) ?? BUTEE_RE_RECOMMANDEE;
   return combis.map((c) => {
-    const gRe = c.nom === 'DA2' ? 1.4 : 1;
+    const re = c.nom === 'DA2' ? butee.R2 : c.nom === 'DA3' ? butee.R3 : butee.R1;
+    const gRe = re.valeur;
     return {
       nom: c.nom,
       gG: c.geotechnique.gG_dst.valeur,
@@ -303,7 +321,7 @@ function jeux(n: NormeParoi): Jeu[] {
         { nom: 'γ_Q', valeur: c.geotechnique.gQ_dst.valeur, source: c.geotechnique.gQ_dst.source },
         { nom: 'γ_tan φ', valeur: c.sol.gPhi.valeur, source: c.sol.gPhi.source },
         { nom: 'γ_c', valeur: c.sol.gC.valeur, source: c.sol.gC.source },
-        { nom: 'γ_Re', valeur: gRe, source: 'EN 1997-1:2004, tableau A.13, valeur recommandée' },
+        { nom: 'γ_Re', valeur: gRe, source: re.source },
       ],
     };
   });

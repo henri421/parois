@@ -1,12 +1,12 @@
 /** Contenu de la note de calcul commune (`noteDeCalculHtml` d'aedificium-ui). PUR : aucun calcul. */
 
-import { avertissement2eGeneration, nombreAffiche, tauxAffiche, type ElementNote, type LigneResultat, type NoteDeCalcul, type VerificationNote } from 'aedificium-ui';
+import { avertissement2eGeneration, avertissementAnnexeLu, nombreAffiche, tauxAffiche, type ElementNote, type LigneResultat, type NoteDeCalcul, type VerificationNote } from 'aedificium-ui';
 import { verifierAcier, type ElementAcier } from '../../src/acier';
 import { verifierFond } from '../../src/fond';
 import { coupeEtDiagrammes } from './dessin';
 import type { Calcul, Resultat } from './form';
 import { phrase, T } from './textes';
-import { aff, blocsResultat, clauseRotation, clauses, entreesParSection, hypotheses, nature, nomCombinaison, titreAcier } from './vue';
+import { aff, blocsResultat, sourceAffichee, clauseRotation, clauses, entreesParSection, hypotheses, nature, nomCombinaison, titreAcier } from './vue';
 import { VERSION_OUTIL } from './version';
 
 const bloc = (titre: string, lignes: LigneResultat[]): ElementNote => ({ type: 'bloc', bloc: { titre, lignes, note: null } });
@@ -121,7 +121,9 @@ export function noteDuCalcul(calcul: Calcul, r: Resultat, cartouche: { projet: s
   const nf = (v: number | null): string => (v === null ? 'auto' : nombreAffiche(v, 3));
   const norme = d.norme.generation === 2
     ? 'EN 1997-3:2025, EN 1990:2023'
-    : d.norme.profil === 'anb' ? 'EN 1997-1:2004, NBN EN 1997-1 ANB:2022' : 'EN 1997-1:2004';
+    : d.norme.profil === 'anb' ? 'EN 1997-1:2004, NBN EN 1997-1 ANB:2022'
+      : d.norme.profil1g !== undefined ? 'EN 1997-1:2004, ILNAS-EN 1997-1/AN-LU:2020' : 'EN 1997-1:2004';
+  const lu = d.norme.generation === 1 && d.norme.profil === 'recommande' && d.norme.profil1g !== undefined;
   const rigide = T('rigide', 'rigid');
   return {
     cartouche: {
@@ -162,11 +164,11 @@ export function noteDuCalcul(calcul: Calcul, r: Resultat, cartouche: { projet: s
       combinaisons: [
         { type: 'liste', items: combinaisons(r.generation) },
         ...r.combinaisons.map((x) => bloc(`${T('Coefficients', 'Factors')}, ${nomCombinaison(x.nom)}`,
-          x.coefficients.map((k) => ({ symbole: k.nom, libelle: phrase(k.source), valeur: nombreAffiche(k.valeur, 3) })))),
+          x.coefficients.map((k) => ({ symbole: k.nom, libelle: sourceAffichee(k.source), valeur: nombreAffiche(k.valeur, 3) })))),
       ],
       calculs: [...tableaux(calcul, r), ...tableauAcier(acier), ...blocsResultat(r).map((b): ElementNote => ({ type: 'bloc', bloc: b }))],
     },
     verifications,
-    avertissements: [...(r.generation === 2 ? [avertissement2eGeneration()] : []), ...r.alertes.map(phrase)],
+    avertissements: [...(lu ? [avertissementAnnexeLu()].filter((a) => a !== '') : []), ...(r.generation === 2 ? [avertissement2eGeneration()] : []), ...r.alertes.map(phrase)],
   } satisfies NoteDeCalcul;
 }

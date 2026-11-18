@@ -1,6 +1,6 @@
 /** Cablage de l'interface des parois. Ne calcule rien : tient la saisie, appelle le noyau par `form`. */
 
-import { avertissement2eGeneration, blocsEnTexte, definirLangue, langueDuDocument, noteDeCalculHtml, notationHtml, ouvrirOuTelecharger, resultatsEnCsv, svgAutonome, telecharger } from 'aedificium-ui';
+import { avertissement2eGeneration, avertissementAnnexeLu, blocsEnTexte, definirLangue, langueDuDocument, noteDeCalculHtml, notationHtml, ouvrirOuTelecharger, resultatsEnCsv, svgAutonome, telecharger } from 'aedificium-ui';
 import { coupeEtDiagrammes, type OptionsDessin } from './dessin';
 import { lireSaisie, longueurProposee, nouvelAppui, nouvelleCharge, relire, saisieParDefaut, serialiser, verifier, type Calcul, type Resultat, type Saisie } from './form';
 import { noteDuCalcul } from './note';
@@ -69,9 +69,14 @@ function ajusterAffichage(): void {
     bandeau.hidden = saisie.generation !== '2e';
     bandeau.textContent = avertissement2eGeneration();
   }
+  const bandeauLu = document.querySelector<HTMLElement>('[data-role="bandeau-annexe"]');
+  if (bandeauLu !== null) {
+    bandeauLu.textContent = avertissementAnnexeLu();
+    bandeauLu.hidden = saisie.generation !== '1re' || saisie.profil !== 'lu' || bandeauLu.textContent === '';
+  }
   const conditions: [string, string][] = [['data-si-generation', saisie.generation], ['data-si-profil', saisie.profil], ['data-si-forme', saisie.forme]];
   for (const [attribut, valeur] of conditions) {
-    for (const z of formulaire.querySelectorAll<HTMLElement>(`[${attribut}]`)) z.hidden = z.getAttribute(attribut) !== valeur;
+    for (const z of formulaire.querySelectorAll<HTMLElement>(`[${attribut}]`)) z.hidden = !(z.getAttribute(attribut) ?? '').split(' ').includes(valeur);
   }
 }
 

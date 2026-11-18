@@ -4,6 +4,7 @@
  */
 
 import { lireNombre, nombreAffiche } from 'aedificium-ui';
+import { buteeReLu, profilLu1g } from './annexe';
 import {
   verifierParoi,
   type Appui,
@@ -169,7 +170,10 @@ function lireNorme(s: Saisie): NormeParoi {
     return { generation: 2, cc, approche: s.approche2 === 'd' ? 'd' : 'a+b' };
   }
   if (s.profil === 'anb') return { generation: 1, profil: 'anb', risque: s.risque === 'faible' || s.risque === 'eleve' ? s.risque : 'normal' };
-  return { generation: 1, profil: 'recommande', approche: s.approche1 === 'DA2' || s.approche1 === 'DA3' ? s.approche1 : 'DA1' };
+  const approche = s.approche1 === 'DA2' || s.approche1 === 'DA3' ? s.approche1 : 'DA1';
+  // Luxembourg (lot E) : profil recommande reetiquete AN-LU, valeurs presumees.
+  if (s.profil === 'lu') return { generation: 1, profil: 'recommande', approche, profil1g: profilLu1g(), buteeRe: buteeReLu() };
+  return { generation: 1, profil: 'recommande', approche };
 }
 
 const nuanceLue = (brut: string): (typeof NUANCES)[number] =>

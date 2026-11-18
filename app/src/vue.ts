@@ -1,6 +1,6 @@
 /** Presentation : listes de saisie, cartes de verdict, volets, blocs de resultats. Mise en forme pure : aucun calcul. */
 
-import { echapper, nombreAffiche, notationHtml, tauxAffiche, type BlocResultat, type LigneResultat } from 'aedificium-ui';
+import { echapper, nombreAffiche, notationHtml, tauxAffiche, traduireSource, type BlocResultat, type LigneResultat } from 'aedificium-ui';
 import { verifierAcier, type ElementAcier } from '../../src/acier';
 import { verifierFond } from '../../src/fond';
 import { modeleBande, type Calcul, type Resultat, type Saisie } from './form';
@@ -12,6 +12,8 @@ export const aff = (v: number, d: number): string => (Number.isFinite(v) ? nombr
 const sym = (s: string): string => notationHtml(s);
 /** Phrase du noyau, traduite au besoin, mise en forme. */
 const txt = (s: string): string => notationHtml(phrase(s));
+/** Source d un coefficient : les sources ILNAS (annexe LU) par traduireSource, les autres par phrase. */
+export const sourceAffichee = (s: string): string => (s.startsWith('ILNAS') ? traduireSource(s) : phrase(s));
 const ligne = (symbole: string, libelle: string, valeur: string): LigneResultat => ({ symbole, libelle, valeur });
 
 export const hypotheses = (): string[] => [
@@ -251,7 +253,7 @@ export function voletsHtml(r: Resultat): string {
     const appuis = x.appuis.map((a) => `${echapper(a.nom)} : ${aff(a.Rh, 1)}`).join(' · ') || '—';
     return `<tr${x.nom === r.gouvernant.combinaison ? ' class="gouverne"' : ''}><td>${sym(nomCombinaison(x.nom))}</td><td class="n">${aff(x.Mmax, 1)}</td><td class="n">${aff(x.Vmax, 1)}</td><td class="n">${aff(x.Nmax, 1)}</td><td class="n">${T(appuis, appuis.replace(/ : /g, ': '))}</td><td class="n">${tauxAffiche(x.mobilisation)}</td></tr>`;
   }).join('');
-  const coef = r.combinaisons.map((x) => `<p><b>${sym(nomCombinaison(x.nom))}</b></p><ul>${x.coefficients.map((k) => `<li>${sym(k.nom)} = ${aff(k.valeur, 3)}${T(' : ', ': ')}${txt(k.source)}</li>`).join('')}</ul>`).join('');
+  const coef = r.combinaisons.map((x) => `<p><b>${sym(nomCombinaison(x.nom))}</b></p><ul>${x.coefficients.map((k) => `<li>${sym(k.nom)} = ${aff(k.valeur, 3)}${T(' : ', ': ')}${notationHtml(sourceAffichee(k.source))}</li>`).join('')}</ul>`).join('');
   return `<details class="deriv" open><summary>${T('Efforts par mètre de paroi', 'Forces per metre of wall')}</summary><div class="defile"><table><thead><tr><th>${T('Combinaison', 'Combination')}</th><th class="n">${sym('M_max')} (kN·m)</th><th class="n">${sym('V_max')} (kN)</th><th class="n">${sym('N_max')} (kN)</th><th class="n">${sym('R_h')} (kN)</th><th class="n">${T('butée mobilisée', 'passive mobilised')}</th></tr></thead><tbody>${lignes}</tbody></table></div></details>` +
     `<details class="deriv"><summary>${T('Coefficients et sources', 'Factors and sources')}</summary><div>${coef}</div></details>` +
     `<details class="deriv"><summary>${T('Hypothèses', 'Assumptions')}</summary><div><ul>${hypotheses().map((t) => `<li>${sym(t)}</li>`).join('')}</ul></div></details>`;
