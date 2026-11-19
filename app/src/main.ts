@@ -1,10 +1,11 @@
 /** Cablage de l'interface des parois. Ne calcule rien : tient la saisie, appelle le noyau par `form`. */
 
 import { avertissement2eGeneration, avertissementAnnexeLu, blocsEnTexte, definirLangue, langueDuDocument, noteDeCalculHtml, telechargerNotePdf, notationHtml, ouvrirOuTelecharger, resultatsEnCsv, svgAutonome, telecharger } from 'aedificium-ui';
-import { coupeEtDiagrammes, type OptionsDessin } from './dessin';
-import { lireSaisie, longueurProposee, nouvelAppui, nouvelleCharge, relire, saisieParDefaut, serialiser, verifier, type Calcul, type Resultat, type Saisie } from './form';
+import { coupeEtDiagrammes, dessinPhasage, type OptionsDessin } from './dessin';
+import { lireSaisie, longueurProposee, nouvelAppui, nouvelleCharge, phasesGenerees, relire, saisieParDefaut, serialiser, verifier, verifierPhasage, type Calcul, type Resultat, type Saisie } from './form';
+import type { ResultatPhases } from '../../src/phases';
 import { noteDuCalcul } from './note';
-import { appuisHtml, blocEntrees, blocsResultat, chargesHtml, couchesHtml, messageDErreur, nomCombinaison, verdictsHtml, voletsHtml } from './vue';
+import { appuisHtml, blocEntrees, blocsResultat, chargesHtml, couchesHtml, messageDErreur, nomCombinaison, phasesHtml, tableauPhasesHtml, verdictsHtml, verdictsPhasesHtml, voletsHtml } from './vue';
 import { T } from './textes';
 import './style.css';
 
@@ -25,6 +26,8 @@ const zones = {
   couches: exige<HTMLElement>('[data-role="couches"]'),
   appuis: exige<HTMLElement>('[data-role="appuis"]'),
   charges: exige<HTMLElement>('[data-role="charges"]'),
+  phases: exige<HTMLElement>('[data-role="phases"]'),
+  vuesPhases: exige<HTMLElement>('[data-role="vues-phases"]'),
   coupe: exige<HTMLElement>('[data-role="coupe"]'),
   verdicts: exige<HTMLElement>('[data-role="verdicts"]'),
   volets: exige<HTMLElement>('[data-role="volets"]'),
@@ -45,7 +48,9 @@ function charger(): Saisie | null {
 }
 
 let saisie: Saisie = charger() ?? saisieParDefaut();
-let dernier: { calcul: Calcul; resultat: Resultat } | null = null;
+let dernier: { calcul: Calcul; resultat: Resultat; phases: ResultatPhases | null } | null = null;
+/** Vue du dessin phase : l'enveloppe ou l'indice d'une phase. */
+let vuePhase: 'enveloppe' | number = 'enveloppe';
 
 function memoriser(): void {
   try {
@@ -92,6 +97,7 @@ function rendreListes(): void {
   zones.couches.innerHTML = couchesHtml(saisie);
   zones.appuis.innerHTML = appuisHtml(saisie);
   zones.charges.innerHTML = chargesHtml(saisie);
+  zones.phases.innerHTML = phasesHtml(saisie);
 }
 
 const option = (n: 'q' | 'V' | 'M' | 'w' | 'cotes'): boolean => exige<HTMLInputElement>(`[data-option="${n}"]`).checked;
@@ -100,8 +106,20 @@ function optionsDessin(r: Resultat): OptionsDessin {
   return { q: option('q'), V: option('V'), M: option('M'), w: option('w'), cotes: option('cotes'), combinaison: selectCombinaison.value || r.gouvernant.combinaison };
 }
 
+function dessinCourant(e: NonNullable<typeof dernier>): string {
+  return e.phases === null ? coupeEtDiagrammes(e.calcul, e.resultat, optionsDessin(e.resultat)) : dessinPhasage(e.calcul, e.phases, vuePhase, optionsDessin(e.resultat));
+}
+
+function rendreVuesPhases(rp: ResultatPhases | null): void {
+  zones.vuesPhases.hidden = rp === null;
+  if (rp === null) return void (zones.vuesPhases.innerHTML = '');
+  if (typeof vuePhase === 'number' && vuePhase >= rp.phases.length) vuePhase = 'enveloppe';
+  const bouton = (v: 'enveloppe' | number, t: string): string => `<button type="button" data-vue-phase="${v}" aria-pressed="${v === vuePhase}">${t}</button>`;
+  zones.vuesPhases.innerHTML = bouton('enveloppe', T('Enveloppe', 'Envelope')) + rp.phases.map((x, i) => bouton(i, x.phase.nom)).join('');
+}
+
 function renduDessin(): void {
-  zones.coupe.innerHTML = dernier === null ? '' : coupeEtDiagrammes(dernier.calcul, dernier.resultat, optionsDessin(dernier.resultat));
+  zones.coupe.innerHTML = dernier === null ? '' : dessinCourant(dernier);
 }
 
 function remplirCombinaisons(r: Resultat): void {
@@ -113,6 +131,7 @@ function remplirCombinaisons(r: Resultat): void {
 
 function viderResultats(): void {
   dernier = null;
+  rendreVuesPhases(null);
   zones.verdicts.innerHTML = '';
   zones.volets.innerHTML = '';
   renduDessin();
@@ -127,17 +146,20 @@ function recalculer(): void {
     return viderResultats();
   }
   let resultat: Resultat;
+  let phases: ResultatPhases | null;
   try {
     resultat = verifier(lecture.calcul);
+    phases = verifierPhasage(lecture.calcul);
   } catch (e) {
     montrerErreur(messageDErreur(e));
     return viderResultats();
   }
   montrerErreur(null);
-  dernier = { calcul: lecture.calcul, resultat };
+  dernier = { calcul: lecture.calcul, resultat, phases };
   remplirCombinaisons(resultat);
-  zones.verdicts.innerHTML = verdictsHtml(lecture.calcul, resultat);
-  zones.volets.innerHTML = voletsHtml(resultat);
+  rendreVuesPhases(phases);
+  zones.verdicts.innerHTML = phases === null ? verdictsHtml(lecture.calcul, resultat) : verdictsPhasesHtml(lecture.calcul, phases);
+  zones.volets.innerHTML = (phases === null ? '' : tableauPhasesHtml(lecture.calcul, phases)) + voletsHtml(resultat);
   renduDessin();
 }
 
@@ -148,14 +170,32 @@ function lireEdition(cible: EventTarget | null): void {
   const valeur = coche ? (cible as HTMLInputElement).checked : cible.value;
   if (d.champ !== undefined) {
     (saisie as unknown as Racine)[d.champ] = valeur;
+    if (d.champ === 'phasage' && saisie.phasage && saisie.phases.length === 0) saisie.phases = phasesGenerees(saisie);
+  } else if (d.liste === 'phases') {
+    const p = saisie.phases[Number(d.i)];
+    if (p === undefined) return;
+    if (d.appui !== undefined) {
+      const coches = new Set(p.appuis.filter((n) => n !== d.appui));
+      if (valeur === true) coches.add(d.appui);
+      p.appuis = saisie.appuis.map((a) => a.nom).filter((n) => coches.has(n));
+    } else if (d.sous === 'H' || d.sous === 'zEau') {
+      p[d.sous] = String(valeur);
+    }
   } else if (d.liste === 'couches' || d.liste === 'appuis' || d.liste === 'charges') {
     const element = saisie[d.liste][Number(d.i)] as unknown as Racine | undefined;
     if (element === undefined || d.sous === undefined) return;
+    // Un appui renomme le reste dans les phases.
+    if (d.liste === 'appuis' && d.sous === 'nom') {
+      const ancien = String(element.nom);
+      for (const p of saisie.phases) p.appuis = p.appuis.map((n) => (n === ancien ? String(valeur) : n));
+    }
     element[d.sous] = valeur;
     if (d.liste === 'charges' && d.sous === 'type') zones.charges.innerHTML = chargesHtml(saisie);
   } else {
     return;
   }
+  // Le tableau des phases reflete les appuis, H et l'eau : redessine sauf pendant sa propre saisie.
+  if (!zones.phases.contains(cible)) zones.phases.innerHTML = phasesHtml(saisie);
   recalculer();
 }
 
@@ -172,12 +212,21 @@ function ajouter(liste: string): void {
   }
   if (liste === 'appuis') saisie.appuis.push(nouvelAppui(saisie.appuis.length + 1));
   if (liste === 'charges') saisie.charges.push(nouvelleCharge());
+  if (liste === 'phases') {
+    const p = saisie.phases[saisie.phases.length - 1];
+    saisie.phases.push(p === undefined ? { H: '', appuis: [], zEau: '' } : { ...p, appuis: [...p.appuis] });
+  }
 }
 
 function retirer(liste: string, i: number): void {
   if (liste === 'couches' && saisie.couches.length > 1) saisie.couches.splice(i, 1);
-  if (liste === 'appuis') saisie.appuis.splice(i, 1);
+  if (liste === 'appuis') {
+    const nom = saisie.appuis[i]?.nom;
+    saisie.appuis.splice(i, 1);
+    for (const p of saisie.phases) p.appuis = p.appuis.filter((n) => n !== nom);
+  }
   if (liste === 'charges') saisie.charges.splice(i, 1);
+  if (liste === 'phases') saisie.phases.splice(i, 1);
 }
 
 document.addEventListener('click', (evenement) => {
@@ -189,8 +238,18 @@ document.addEventListener('click', (evenement) => {
     saisie.generation = d.generation;
     return recalculer();
   }
+  if (d.vuePhase !== undefined) {
+    vuePhase = d.vuePhase === 'enveloppe' ? 'enveloppe' : Number(d.vuePhase);
+    rendreVuesPhases(dernier?.phases ?? null);
+    return renduDessin();
+  }
   const action = d.action;
   if (action === undefined) return;
+  if (action === 'generer-phases') {
+    saisie.phases = phasesGenerees(saisie);
+    rendreListes();
+    return recalculer();
+  }
   if ((action === 'ajouter' || action === 'retirer') && d.liste !== undefined) {
     if (action === 'ajouter') ajouter(d.liste);
     else retirer(d.liste, Number(d.i));
@@ -221,7 +280,7 @@ document.addEventListener('click', (evenement) => {
     if (action === 'exporter-note-pdf') void telechargerNotePdf('parois-note.pdf', noteCalc, '').catch(() => ouvrirOuTelecharger('parois-note.html', noteDeCalculHtml(noteCalc, '')));
     else ouvrirOuTelecharger('parois-note.html', noteDeCalculHtml(noteCalc, ''));
   } else if (action === 'exporter-coupe') {
-    telecharger('parois-coupe.svg', svgAutonome(coupeEtDiagrammes(e.calcul, e.resultat, optionsDessin(e.resultat)), ''), 'image/svg+xml;charset=utf-8');
+    telecharger('parois-coupe.svg', svgAutonome(dessinCourant(e), ''), 'image/svg+xml;charset=utf-8');
   } else if (action === 'exporter-resultats') {
     const blocs = [{ titre: T('Données', 'Input'), lignes: blocEntrees(e.calcul), note: null }, ...blocsResultat(e.resultat)];
     telecharger('parois-resultats.csv', resultatsEnCsv(blocsEnTexte(blocs)), 'text/csv;charset=utf-8');

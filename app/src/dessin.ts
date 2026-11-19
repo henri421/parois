@@ -1,7 +1,8 @@
 /** Coupe de la paroi et diagrammes q, V, M, w sur une meme echelle verticale. PUR ; attributs en ligne : le SVG tient seul. */
 
 import { echapper, nombreAffiche } from 'aedificium-ui';
-import type { Calcul, Resultat } from './form';
+import { calculDePhase, type Calcul, type Resultat } from './form';
+import type { ResultatPhases } from '../../src/phases';
 import { T } from './textes';
 import { nature } from './vue';
 
@@ -128,6 +129,58 @@ function diagramme(x0: number, g: Diagramme, y: (z: number) => number): string {
     ligne(x0, y(g.z[0]), x0, y(zFin), '#1a1a1a', 1) +
     `<polygon points="${poly}" fill="${g.couleur}" fill-opacity=".22" stroke="${g.couleur}" stroke-width="1.2"/>` +
     etiquette(iMax) + (iMin === iMax ? '' : etiquette(iMin));
+}
+
+/** Enveloppe d'un effort : zone entre les courbes min et max de toutes les phases et combinaisons. */
+function diagrammeEnveloppe(x0: number, titre: string, unite: string, z: number[], vmin: number[], vmax: number[], couleur: string, y: (z: number) => number): string {
+  const demi = COLONNE / 2 - 16;
+  const m = Math.max(1e-9, ...vmin.map(Math.abs), ...vmax.map(Math.abs));
+  const px = (v: number): number => x0 + (v / m) * demi;
+  const haut = z.map((zi, i) => `${f(px(vmax[i]))},${f(y(zi))}`);
+  const bas = z.map((zi, i) => `${f(px(vmin[i]))},${f(y(zi))}`).reverse();
+  let iMax = 0;
+  let iMin = 0;
+  vmax.forEach((v, i) => { if (v > vmax[iMax]) iMax = i; });
+  vmin.forEach((v, i) => { if (v < vmin[iMin]) iMin = i; });
+  const etiquette = (v: number, zi: number): string => {
+    if (Math.abs(v) < m * 0.02) return '';
+    const droite = v > 0;
+    return texte(px(v) + (droite ? -2 : 2), Math.min(y(zi) + 4, y(z[z.length - 1]) + 12), nombreAffiche(v, 0), couleur, 10.5, droite ? 'end' : 'start', ' stroke="#fff" stroke-width="3" paint-order="stroke"');
+  };
+  return texte(x0, 32, titre, '#4a4842', 12.5, 'middle', ' font-weight="600"') +
+    texte(x0, 46, unite, '#6a6862', 10.5, 'middle') +
+    ligne(x0, y(z[0]), x0, y(z[z.length - 1]), '#1a1a1a', 1) +
+    `<polygon data-role="enveloppe" points="${haut.join(' ')} ${bas.join(' ')}" fill="${couleur}" fill-opacity=".22" stroke="${couleur}" stroke-width="1.2"/>` +
+    etiquette(vmax[iMax], z[iMax]) + etiquette(vmin[iMin], z[iMin]);
+}
+
+/**
+ * Dessin du calcul phase. `vue` = indice de phase (0 = premiere) : le dessin ordinaire de cette phase ;
+ * 'enveloppe' : coupe finale, un trait par fond de fouille, enveloppes de M (et de V si o.V).
+ */
+export function dessinPhasage(c: Calcul, rp: ResultatPhases, vue: 'enveloppe' | number, o: OptionsDessin): string {
+  const n = rp.phases.length;
+  if (vue !== 'enveloppe') {
+    const x = rp.phases[Math.min(Math.max(0, vue), n - 1)];
+    const finale = x === rp.phases[n - 1];
+    return coupeEtDiagrammes(calculDePhase(c, x.phase, finale), x.resultat, o);
+  }
+  const echelle = TRACE / c.donnees.L;
+  const y = (z: number): number => HAUT + z * echelle;
+  let fonds = '';
+  rp.phases.forEach((x, i) => {
+    const yy = y(x.phase.H);
+    fonds += `<g data-phase="${i + 1}">${ligne(MUR, yy, DROITE, yy, '#6a6862', 1, ' stroke-dasharray="3 3"')}${texte(DROITE - 2, yy - 3, `${'Ph.'} ${i + 1}`, '#6a6862', 10, 'end')}</g>`;
+  });
+  const e = rp.enveloppe;
+  const colonnes = [
+    diagrammeEnveloppe(0, T('Enveloppe de M', 'Envelope of M'), 'kN·m/m', e.z, e.Mmin, e.Mmax, '#a8442a', y),
+    ...(o.V ? [diagrammeEnveloppe(0, T('Enveloppe de V', 'Envelope of V'), 'kN/m', e.z, e.Vmin, e.Vmax, '#1f6f3f', y)] : []),
+  ];
+  const largeur = DROITE + 15 + COLONNE * colonnes.length;
+  const corps = coupe(c, y, o.cotes) + fonds + colonnes.map((s, i) =>
+    `<g transform="translate(${f(DROITE + 15 + COLONNE * (i + 0.5))} 0)">${s}</g>`).join('');
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${largeur} ${HAUT + TRACE + 26}" role="img" font-family="system-ui, 'Segoe UI', Roboto, sans-serif" aria-label="${T('Coupe de la paroi et enveloppes des phases', 'Wall section and envelopes of the phases')}">${corps}</svg>`;
 }
 
 export function coupeEtDiagrammes(c: Calcul, r: Resultat, o: OptionsDessin): string {

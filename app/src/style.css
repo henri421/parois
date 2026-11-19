@@ -76,3 +76,14 @@ details.deriv ul { padding-left: 1.2rem; }
 .alertes h3 { margin: 0; font-size: .85rem; color: var(--alerte); }
 .alertes ul { margin: .2rem 0 0; padding-left: 1.1rem; }
 sub { font-size: .72em; }
+
+/* Phases de construction (calcul phase) */
+table.phases td { padding: .15rem .25rem; vertical-align: middle; }
+table.phases input[type='text'] { width: 4.5rem; }
+table.phases td.appuis { white-space: normal; }
+table.phases .case { display: inline-flex; align-items: center; gap: .15rem; margin-right: .5rem; font-size: .8rem; }
+table.phases .case input { width: auto; }
+table.phases tr.finale td { color: var(--texte-faible); background: var(--surface); }
+tr.enveloppe td { font-weight: 600; border-top: 2px solid var(--bordure); }
+.vues-phases { display: inline-flex; flex-wrap: wrap; gap: .25rem; }
+.vues-phases[hidden] { display: none; }

@@ -17,6 +17,8 @@ import {
   type ResultatParoi,
 } from '../../src/parois';
 import type { DonneesAcier } from '../../src/acier';
+import { donneesDePhase, phasesAutomatiques, verifierPhases, type Phase, type ResultatPhases } from '../../src/phases';
+import { verifierParoi as calculParoi } from '../../src/parois';
 import { T } from './textes';
 
 /** Nuances d'acier admises ; toute autre valeur retombe sur S235. */
@@ -40,6 +42,9 @@ export interface SaisieCharge {
   H: string; M: string; z: string; z1: string; z2: string; p1: string; p2: string;
 }
 
+/** Phase intermediaire du calcul phase ; la phase finale est la saisie elle-meme. */
+export interface SaisiePhase { H: string; appuis: string[]; zEau: string }
+
 export interface Saisie {
   H: string; L: string; EI: string; EA: string; degre: string;
   partK0: string; forme: string; polygone: string;
@@ -49,9 +54,15 @@ export interface Saisie {
   gG: string; gQ: string; gPhi: string; gC: string; gCu: string; gRe: string;
   profilParoi: string; nuance: string; entraxeProfils: string;
   largeurFouille: string; longueurFouille: string; poidsParoi: string;
+  /** Calcul phase (lot F) : absents des fichiers anciens, ils y prennent leurs valeurs par defaut. */
+  phasage: boolean; surexcavation: string; phases: SaisiePhase[];
 }
 
-export interface Calcul { saisie: Saisie; donnees: DonneesParoi; acier: DonneesAcier }
+export interface Calcul {
+  saisie: Saisie; donnees: DonneesParoi; acier: DonneesAcier;
+  /** Phases du calcul phase, la finale en dernier ; null sans phasage. */
+  phases: Phase[] | null;
+}
 export type Resultat = ResultatParoi;
 export type Lecture = { ok: true; calcul: Calcul } | { ok: false; message: string };
 
@@ -84,6 +95,7 @@ export function saisieParDefaut(): Saisie {
     gG: '', gQ: '', gPhi: '', gC: '', gCu: '', gRe: '',
     profilParoi: '', nuance: 'S235', entraxeProfils: '2,5',
     largeurFouille: '', longueurFouille: '', poidsParoi: '',
+    phasage: false, surexcavation: '0,5', phases: [],
   };
 }
 
@@ -249,7 +261,7 @@ export function lireSaisie(s: Saisie): Lecture {
       fouille: lireFouille(s),
       poidsParoi: lirePoids(s),
     };
-    return { ok: true, calcul: { saisie: s, donnees, acier: lireAcier(s) } };
+    return { ok: true, calcul: { saisie: s, donnees, acier: lireAcier(s), phases: s.phasage ? lirePhases(s, donnees) : null } };
   } catch (e) {
     if (e instanceof Refus) return { ok: false, message: e.message };
     throw e;
@@ -257,6 +269,65 @@ export function lireSaisie(s: Saisie): Lecture {
 }
 
 export const verifier = (c: Calcul): Resultat => verifierParoi(c.donnees);
+
+/** Phases lues : les lignes saisies (« Phase k »), puis la finale (H, tous les appuis, eau saisie). */
+function lirePhases(s: Saisie, d: DonneesParoi): Phase[] {
+  const lues = s.phases.map((p, i): Phase => {
+    const nom = `Phase ${i + 1}`;
+    const n = (brut: string, champ: string) => nb(brut, `${nom}${T(' : ', ': ')}${champ}`);
+    return { nom, H: n(p.H, T('fond de fouille', 'excavation level')), appuis: [...p.appuis], zEau: n(p.zEau, T('eau côté fouille', 'water, excavation side')) };
+  });
+  return [...lues, { nom: `Phase ${lues.length + 1}`, H: d.H, appuis: d.appuis.map((a) => a.nom), zEau: d.eau.zFouille }];
+}
+
+const nombreSaisi = (v: number): string => String(Math.round(v * 1e6) / 1e6).replace('.', ',');
+
+/** Phases intermediaires generees (la finale est implicite) ; saisie illisible : aucune phase. */
+export function phasesGenerees(s: Saisie): SaisiePhase[] {
+  const l = lireSaisie({ ...s, phasage: false });
+  if (!l.ok) return [];
+  const sur = lireNombre(s.surexcavation);
+  const p = phasesAutomatiques(l.calcul.donnees, sur !== null && sur >= 0 ? sur : 0.5);
+  return p.slice(0, -1).map((x) => ({ H: nombreSaisi(x.H), appuis: [...x.appuis], zEau: nombreSaisi(x.zEau) }));
+}
+
+/**
+ * Calcul d'une phase : donnees de la phase, acier des appuis en place (les listes de butons et de
+ * liernes suivent l'ordre des appuis, elles sont donc reindexees). Phase finale : le calcul lui-meme.
+ */
+export function calculDePhase(c: Calcul, p: Phase, finale: boolean): Calcul {
+  if (finale) return c;
+  const donnees = donneesDePhase(c.donnees, p);
+  const indice = (nom: string): number => c.donnees.appuis.findIndex((a) => a.nom === nom);
+  return {
+    saisie: c.saisie, donnees, phases: null,
+    acier: {
+      paroi: c.acier.paroi,
+      butons: donnees.appuis.map((a) => c.acier.butons[indice(a.nom)] ?? null),
+      liernes: donnees.appuis.map((a) => c.acier.liernes[indice(a.nom)] ?? null),
+    },
+  };
+}
+
+/** Calcul phase complet ; null sans phasage. */
+export function verifierPhasage(c: Calcul): ResultatPhases | null {
+  if (c.phases === null) return null;
+  try {
+    return verifierPhases(c.donnees, c.phases);
+  } catch (e) {
+    // Un refus du noyau ne dit pas de quelle phase il vient : on la retrouve pour le message.
+    const m = e instanceof Error ? e.message : String(e);
+    if (m.startsWith('Phase ')) throw e;
+    for (const p of c.phases) {
+      try {
+        calculParoi(donneesDePhase(c.donnees, p));
+      } catch (f) {
+        throw new Error(`${p.nom} : ${f instanceof Error ? f.message : String(f)}`);
+      }
+    }
+    throw e;
+  }
+}
 
 /** Longueur qui donne la plus grande fiche minimale des combinaisons, arrondie aux 5 cm superieurs. */
 export function longueurProposee(calcul: Calcul, r: Resultat): string | null {
@@ -282,12 +353,14 @@ export function relire(contenu: string): Saisie {
   const d = saisieParDefaut();
   const liste = <T extends object>(v: unknown, modele: T, defaut: T[]): T[] =>
     (Array.isArray(v) ? v.map((x) => fusion(modele, x)) : defaut);
-  const { couches: _c, appuis: _a, charges: _h, ...simples } = d;
+  const { couches: _c, appuis: _a, charges: _h, phases: _p, ...simples } = d;
   return {
     ...fusion(simples, brut),
     generation: brut.generation === '1re' ? '1re' : '2e',
     couches: (() => { const l = liste(brut.couches, d.couches[0], d.couches); return l.length > 0 ? l : d.couches; })(),
     appuis: liste(brut.appuis, d.appuis[0], d.appuis),
     charges: liste(brut.charges, d.charges[0], d.charges),
+    phases: liste(brut.phases, { H: '', appuis: [] as string[], zEau: '' }, [])
+      .map((p) => ({ ...p, appuis: Array.isArray(p.appuis) ? p.appuis.filter((x): x is string => typeof x === 'string') : [] })),
   };
 }

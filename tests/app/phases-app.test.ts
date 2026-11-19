@@ -92,7 +92,11 @@ describe('T3 note de calcul phasee', () => {
       expect(n.verifications.some((v) => v.nom.startsWith(`${p} · `))).toBe(true);
     }
     const rp = verifierPhasage(c)!;
-    const det = n.verifications.reduce((a, b) => ((b.taux ?? -1) > (a.taux ?? -1) ? b : a));
+    // 20/11/2026, Claude (conception) : la phase determinante est definie par la mobilisation de la
+    // butee ; on la cherche donc parmi les verifications de rotation. L'equilibre vertical de la
+    // phase en console (Phase 1) depasse ici celui de la phase finale et ne doit pas etre masque.
+    const det = n.verifications.filter((v) => v.nom.includes('Rotation'))
+      .reduce((a, b) => ((b.taux ?? -1) > (a.taux ?? -1) ? b : a));
     expect(det.nom.startsWith(`${rp.determinante.phase} · `)).toBe(true);
   });
   it('enveloppe dans les calculs : longueur requise et effort maximal de chaque appui avec sa phase', () => {

@@ -1,12 +1,13 @@
 /** Contenu de la note de calcul commune (`noteDeCalculHtml` d'aedificium-ui). PUR : aucun calcul. */
 
-import { avertissement2eGeneration, avertissementAnnexeLu, nombreAffiche, tauxAffiche, type ElementNote, type LigneResultat, type NoteDeCalcul, type VerificationNote } from 'aedificium-ui';
+import { avertissement2eGeneration, avertissementAnnexeLu, nombreAffiche, tauxAffiche, type ElementNote, type LigneResultat, type NoteDeCalcul } from 'aedificium-ui';
 import { verifierAcier, type ElementAcier } from '../../src/acier';
 import { verifierFond } from '../../src/fond';
-import { coupeEtDiagrammes } from './dessin';
-import type { Calcul, Resultat } from './form';
+import type { ResultatPhases } from '../../src/phases';
+import { coupeEtDiagrammes, dessinPhasage } from './dessin';
+import { calculDePhase, verifierPhasage, type Calcul, type Resultat } from './form';
 import { phrase, T } from './textes';
-import { aff, blocsResultat, sourceAffichee, clauseRotation, clauses, entreesParSection, hypotheses, nature, nomCombinaison, titreAcier } from './vue';
+import { aff, blocsResultat, verificationsDe, type Verif, sourceAffichee, entreesParSection, hypotheses, nature, nomCombinaison, titreAcier } from './vue';
 import { VERSION_OUTIL } from './version';
 
 const bloc = (titre: string, lignes: LigneResultat[]): ElementNote => ({ type: 'bloc', bloc: { titre, lignes, note: null } });
@@ -24,7 +25,7 @@ const combinaisons = (g: 1 | 2): string[] => (g === 2
     T('Situations durables et transitoires.', 'Persistent and transient situations.'),
   ]);
 
-function tableaux(c: Calcul, r: Resultat): ElementNote[] {
+function tableaux(c: Calcul, r: Resultat, prefixe = '', valeurs = true): ElementNote[] {
   const pas = 0.5;
   const x = r.combinaisons.find((k) => k.nom === r.gouvernant.combinaison) ?? r.combinaisons[0];
   const lignes: string[][] = [];
@@ -38,22 +39,22 @@ function tableaux(c: Calcul, r: Resultat): ElementNote[] {
   const comb = T('Combinaison', 'Combination');
   const synthese: ElementNote = {
     type: 'tableau',
-    titre: T('Efforts et mobilisation, par combinaison', 'Forces and mobilisation, per combination'),
+    titre: prefixe + T('Efforts et mobilisation, par combinaison', 'Forces and mobilisation, per combination'),
     entetes: [comb, 'M_max (kN·m/m)', 'V_max (kN/m)', 'N_max (kN/m)', T('Butée mobilisée', 'Passive mobilised'), T('Fiche min. (m)', 'Min. embedment (m)')],
     lignes: r.combinaisons.map((k) => [nomCombinaison(k.nom), aff(k.Mmax, 1), aff(k.Vmax, 1), aff(k.Nmax, 1), tauxAffiche(k.mobilisation), k.ficheMinimale === null ? '—' : aff(k.ficheMinimale, 2)]),
   };
   const appuis: ElementNote[] = c.donnees.appuis.length === 0 ? [] : [{
     type: 'tableau',
-    titre: T('Appuis', 'Supports'),
+    titre: prefixe + T('Appuis', 'Supports'),
     entetes: [comb, T('Appui', 'Support'), 'z (m)', 'R_h (kN/m)', T('Effort axial (kN)', 'Axial force (kN)'), T('M lierne (kN·m)', 'M waler (kN·m)')],
     lignes: r.combinaisons.flatMap((k) => k.appuis.map((a) => [nomCombinaison(k.nom), a.nom, aff(a.z, 2), aff(a.Rh, 1), aff(a.axial, 1), aff(a.Mlierne, 1)])),
   }];
-  return [synthese, ...appuis, {
+  return [synthese, ...appuis, ...(!valeurs ? [] : [{
     type: 'tableau',
     titre: `${T('Valeurs le long de la paroi', 'Values along the wall')}, ${nomCombinaison(x.nom)}`,
     entetes: ['z (m)', 'q (kN/m)', 'V (kN/m)', 'M (kN·m/m)', 'N (kN/m)'],
     lignes,
-  }];
+  } satisfies ElementNote])];
 }
 
 function descriptionCharge(c: Calcul['donnees']['charges'][number]): string[] {
@@ -79,45 +80,51 @@ const tableauAcier = (elements: ElementAcier[]): ElementNote[] => (elements.leng
     e.taux === null ? '—' : tauxAffiche(e.taux)]),
 }]);
 
+const nomsAppuis = (l: string[]): string => (l.length === 0 ? T('aucun (console)', 'none (cantilever)') : l.join(', '));
+
+/** Elements propres au calcul phase : tableau des phases, calculs par phase et enveloppe. */
+function notePhasee(calcul: Calcul, rp: ResultatPhases) {
+  const n = rp.phases.length;
+  const tableauPhases: ElementNote = {
+    type: 'tableau',
+    titre: T('Phases de construction', 'Phases of construction'),
+    entetes: ['Phase', T('Fond de fouille (m)', 'Excavation level (m)'), T('Appuis en place', 'Supports in place'), T('Eau côté fouille (m)', 'Water, excavation side (m)')],
+    lignes: rp.phases.map((x) => [x.phase.nom, aff(x.phase.H, 2), nomsAppuis(x.phase.appuis), aff(x.phase.zEau, 2)]),
+  };
+  const calculs: ElementNote[] = rp.phases.flatMap((x, i) =>
+    tableaux(calculDePhase(calcul, x.phase, i === n - 1), x.resultat, `${x.phase.nom} · `, false));
+  const comb = (phase: string, nom: string): string => `${phase}, ${nomCombinaison(nom)}`;
+  const lr = rp.longueurRequise;
+  const enveloppe: ElementNote = bloc(T('Enveloppe des phases', 'Envelope of the phases'), [
+    { symbole: 'L_req', libelle: lr.valeur === null ? T('Longueur requise : une fiche n’existe pas', 'Required length: no embedment exists')
+      : `${T('Longueur requise (fond + fiche minimale)', 'Required length (level + minimum embedment)')}, ${lr.phase}`,
+      valeur: lr.valeur === null ? '—' : `${aff(lr.valeur, 2)} m` },
+    ...rp.appuis.map((a) => ({ symbole: `R_h,max ${a.nom}`, libelle: `${T('Réaction maximale', 'Maximum reaction')} ${a.nom}, ${comb(a.phase, a.combinaison)}`,
+      valeur: `${aff(a.Rh, 1)} kN/m (${T('axial', 'axial')} ${aff(a.axial, 1)} kN)` })),
+    { symbole: 'M_d', libelle: T('Moment maximal des phases', 'Maximum moment of the phases'), valeur: `${aff(rp.Md, 1)} kN·m/m` },
+    { symbole: 'V_d', libelle: T('Effort tranchant maximal des phases', 'Maximum shear of the phases'), valeur: `${aff(rp.Vd, 1)} kN/m` },
+    { symbole: T('Déterminante', 'Governing'), libelle: comb(rp.determinante.phase, rp.determinante.combinaison), valeur: tauxAffiche(rp.determinante.mobilisation) },
+  ]);
+  const verifications = rp.phases.flatMap((x, i) =>
+    verificationsDe(calculDePhase(calcul, x.phase, i === n - 1), x.resultat, x.fond, `${x.phase.nom} · `));
+  const figure: ElementNote = {
+    type: 'figure',
+    svg: dessinPhasage(calcul, rp, 'enveloppe', { q: false, V: true, M: true, w: false, cotes: true, combinaison: rp.determinante.combinaison }),
+    legende: T('Enveloppes de M et de V sur toutes les phases et combinaisons ; fonds de fouille successifs en tireté.',
+      'Envelopes of M and V over all phases and combinations; successive excavation levels dashed.'),
+  };
+  return { tableauPhases, calculs: [...calculs, enveloppe], verifications, figure };
+}
+
 export function noteDuCalcul(calcul: Calcul, r: Resultat, cartouche: { projet: string; element: string; date: string }) {
   const d = calcul.donnees;
   const e = entreesParSection(calcul);
   const figure = coupeEtDiagrammes(calcul, r, { q: true, V: true, M: true, w: true, cotes: true, combinaison: r.gouvernant.combinaison });
   const acier = verifierAcier(calcul.donnees, r, calcul.acier);
   const fond = verifierFond(calcul.donnees, r);
-  const cl = clauses(r.generation);
-  const verifications: (VerificationNote & { taux: number })[] = [
-    ...r.combinaisons.map((x) => ({
-      nom: `Rotation, ${nomCombinaison(x.nom)}`,
-      clause: clauseRotation(r),
-      taux: x.mobilisation,
-      ok: x.mobilisation <= 1,
-    })),
-    ...acier.map((x) => ({
-      nom: `${titreAcier(x)}, ${x.profil} ${x.nuance}`,
-      clause: 'EN 1993-1-1, 6.2 ; 6.3',
-      taux: x.taux ?? NaN,
-      ok: x.taux !== null && x.taux <= 1,
-    })),
-    ...(fond.hyd === null ? [] : [{
-      nom: T('Soulèvement hydraulique', 'Hydraulic heave'),
-      clause: cl.hyd,
-      taux: fond.hyd.taux,
-      ok: fond.hyd.taux <= 1,
-    }]),
-    ...(fond.fond.applicable ? fond.fond.combinaisons.map((x) => ({
-      nom: `${T('Soulèvement du fond', 'Basal heave')} · ${nomCombinaison(x.combinaison)}`,
-      clause: cl.fond,
-      taux: x.taux,
-      ok: x.taux <= 1,
-    })) : []),
-    ...fond.vertical.map((v) => ({
-      nom: `${T('Équilibre vertical', 'Vertical equilibrium')} · ${nomCombinaison(v.combinaison)}`,
-      clause: cl.vertical,
-      taux: v.taux,
-      ok: v.taux <= 1,
-    })),
-  ];
+  const rp = verifierPhasage(calcul);
+  const ph = rp === null ? null : notePhasee(calcul, rp);
+  const verifications: Verif[] = ph !== null ? ph.verifications : verificationsDe(calcul, r, fond, '');
   const nf = (v: number | null): string => (v === null ? 'auto' : nombreAffiche(v, 3));
   const norme = d.norme.generation === 2
     ? 'EN 1997-3:2025, EN 1990:2023'
@@ -142,6 +149,7 @@ export function noteDuCalcul(calcul: Calcul, r: Resultat, cartouche: { projet: s
           legende: T(`Coupe et diagrammes q, V, M (${nomCombinaison(r.gouvernant.combinaison)}) ; w caractéristique, positif vers la fouille.`,
             `Section and q, V, M diagrams (${nomCombinaison(r.gouvernant.combinaison)}); characteristic w, positive towards the excavation.`),
         },
+        ...(ph === null ? [] : [ph.figure]),
       ],
       materiaux: [{
         type: 'tableau',
@@ -149,7 +157,9 @@ export function noteDuCalcul(calcul: Calcul, r: Resultat, cartouche: { projet: s
         entetes: [T('Couche', 'Layer'), 'h (m)', 'γ / γ_sat (kN/m³)', 'φ (°)', 'c (kPa)', T('kδ actif', 'kδ active'), T('kδ passif', 'kδ passive'), 'K_a', 'K_p'],
         lignes: d.couches.map((c) => [c.nom, aff(c.h, 2), `${aff(c.gamma, 1)} / ${aff(c.gammaSat, 1)}`, aff(c.phi, 1), aff(c.c, 1), aff(c.kDeltaA, 3), aff(c.kDeltaP, 3), nf(c.KaImpose), nf(c.KpImpose)]),
       }],
-      hypotheses: [bloc(T('Choix de calcul', 'Calculation choices'), e.hypotheses), { type: 'liste', items: hypotheses() }],
+      hypotheses: [bloc(T('Choix de calcul', 'Calculation choices'), e.hypotheses), { type: 'liste', items: [...hypotheses(), ...(ph === null ? [] : [T(
+        'Calcul phasé : chaque phase de terrassement est un état d’équilibre limite indépendant, sans historique des déplacements ; seuls le fond, les appuis en place et l’eau côté fouille changent d’une phase à l’autre.',
+        'Phased calculation: each excavation phase is an independent limit-equilibrium state, sans historique (no displacement history); only the excavation level, the supports in place and the water on the excavation side change between phases.')])] }],
       charges: [
         bloc(T('Eau', 'Water'), e.eau),
         { type: 'tableau', titre: T('Charges', 'Loads'), entetes: ['Type', 'Nature', T('Définition', 'Definition')], lignes: d.charges.map(descriptionCharge) },
@@ -160,13 +170,14 @@ export function noteDuCalcul(calcul: Calcul, r: Resultat, cartouche: { projet: s
           lignes: d.appuis.map((a) => [a.nom, a.type === 'tirant' ? T('tirant', 'anchor') : T('buton', 'strut'), aff(a.z, 2), aff(a.inclinaison, 1), aff(a.entraxe, 2),
             a.EA === null ? rigide : `EA ${aff(a.EA, 0)} kN, L ${aff(a.longueur ?? 0, 2)} m`, a.effortImpose === null ? '—' : aff(a.effortImpose, 1)]),
         }]),
+        ...(ph === null ? [] : [ph.tableauPhases]),
       ],
       combinaisons: [
         { type: 'liste', items: combinaisons(r.generation) },
         ...r.combinaisons.map((x) => bloc(`${T('Coefficients', 'Factors')}, ${nomCombinaison(x.nom)}`,
           x.coefficients.map((k) => ({ symbole: k.nom, libelle: sourceAffichee(k.source), valeur: nombreAffiche(k.valeur, 3) })))),
       ],
-      calculs: [...tableaux(calcul, r), ...tableauAcier(acier), ...blocsResultat(r).map((b): ElementNote => ({ type: 'bloc', bloc: b }))],
+      calculs: [...(ph === null ? tableaux(calcul, r) : [...ph.calculs, ...tableaux(calcul, r).slice(-1)]), ...tableauAcier(acier), ...blocsResultat(r).map((b): ElementNote => ({ type: 'bloc', bloc: b }))],
     },
     verifications,
     avertissements: [...(lu ? [avertissementAnnexeLu()].filter((a) => a !== '') : []), ...(r.generation === 2 ? [avertissement2eGeneration()] : []), ...r.alertes.map(phrase)],

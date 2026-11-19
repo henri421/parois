@@ -14,7 +14,7 @@
     <header>
       <h1>Parois</h1>
       <p>Paroi de soutènement encastrée, en console ou à plusieurs niveaux d’appui, par équilibre limite (EN 1997), en 1<sup>re</sup> ou 2<sup>e</sup> génération.</p>
-      <p class="avertissement">Non traités dans cette version : phasage et interaction sol-structure (la déformée est celle de la poutre, D.8), soulèvement du fond et renard, équilibre vertical, résistance des tirants, de la paroi et des liernes (efforts rendus), stabilité générale (outil Stabilité de talus).</p>
+      <p class="avertissement">Non traités dans cette version : historique des phases (chaque phase est calculée seule) et interaction sol-structure (la déformée est celle de la poutre, D.8), soulèvement du fond et renard, équilibre vertical, résistance des tirants, de la paroi et des liernes (efforts rendus), stabilité générale (outil Stabilité de talus).</p>
     </header>
     <main>
       <section id="saisie" aria-label="Saisie">
@@ -42,6 +42,12 @@
             <legend>Appuis</legend>
             <div data-role="appuis"></div>
             <div class="boutons"><button type="button" data-action="ajouter" data-liste="appuis">+ appui</button></div>
+          </fieldset>
+
+          <fieldset>
+            <legend>Phases de construction</legend>
+            <label class="ligne"><span>Calcul phasé</span><input type="checkbox" data-champ="phasage" /></label>
+            <div data-role="phases"></div>
           </fieldset>
 
           <fieldset>
@@ -130,6 +136,7 @@
           <label><input type="checkbox" data-option="M" checked /> M</label>
           <label><input type="checkbox" data-option="w" checked /> w</label>
           <label><input type="checkbox" data-option="cotes" checked /> cotes</label>
+          <span class="vues-phases" data-role="vues-phases" hidden></span>
           <label>Combinaison <select data-role="combinaison"></select></label>
         </div>
         <div class="dessin">

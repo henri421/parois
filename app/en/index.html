@@ -14,7 +14,7 @@
     <header>
       <h1>Embedded walls</h1>
       <p>Embedded retaining wall, cantilevered or with several support levels, by limit equilibrium (EN 1997), 1<sup>st</sup> or 2<sup>nd</sup> generation.</p>
-      <p class="avertissement">Not covered in this version: staging and soil-structure interaction (the deflection is that of the beam, D.8), base heave and piping, vertical equilibrium, resistance of anchors, wall and walers (forces given), overall stability (Slope stability tool).</p>
+      <p class="avertissement">Not covered in this version: phase history (each phase is calculated on its own) and soil-structure interaction (the deflection is that of the beam, D.8), base heave and piping, vertical equilibrium, resistance of anchors, wall and walers (forces given), overall stability (Slope stability tool).</p>
     </header>
     <main>
       <section id="saisie" aria-label="Input">
@@ -42,6 +42,12 @@
             <legend>Supports</legend>
             <div data-role="appuis"></div>
             <div class="boutons"><button type="button" data-action="ajouter" data-liste="appuis">+ support</button></div>
+          </fieldset>
+
+          <fieldset>
+            <legend>Construction phases</legend>
+            <label class="ligne"><span>Phased calculation</span><input type="checkbox" data-champ="phasage" /></label>
+            <div data-role="phases"></div>
           </fieldset>
 
           <fieldset>
@@ -130,6 +136,7 @@
           <label><input type="checkbox" data-option="M" checked /> M</label>
           <label><input type="checkbox" data-option="w" checked /> w</label>
           <label><input type="checkbox" data-option="cotes" checked /> dimensions</label>
+          <span class="vues-phases" data-role="vues-phases" hidden></span>
           <label>Combination <select data-role="combinaison"></select></label>
         </div>
         <div class="dessin">

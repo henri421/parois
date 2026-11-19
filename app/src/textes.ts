@@ -29,6 +29,11 @@ const EXACTES: Record<string, string> = {
 };
 
 const REGLES: RegleDePhrase[] = [
+  [/^(Phase d+) : fond de fouille entre 0 et (.+) m (fond final).$/, (_m, p, h) => `${p}: excavation level between 0 and ${h} m (final level).`],
+  [/^(Phase d+) : l’eau côté fouille ne peut pas être au-dessus du fond de fouille.$/, (_m, p) => `${p}: the water on the excavation side cannot be above the excavation level.`],
+  [/^(Phase d+) : appui inconnu « (.+) ».$/, (_m, p, a) => `${p}: unknown support “${a}”.`],
+  [/^(Phase d+) : (.+) est posé sous le fond de fouille de la phase.$/, (_m, p, a) => `${p}: ${a} is installed below the excavation level of the phase.`],
+  [/^(Phase d+) : (.+)$/, (_m, p, reste) => `${p}: ${phrase(reste)}`],
   [/^(.+) : valeur strictement positive attendue\.$/, (_m, n) => `${n}: strictly positive value expected.`],
   [/^(.+) : angle de frottement entre 0 et 60°\.$/, (_m, n) => `${n}: friction angle between 0 and 60°.`],
   [/^(.+) : cohésion négative ou invalide\.$/, (_m, n) => `${n}: negative or invalid cohesion.`],

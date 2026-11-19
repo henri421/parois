@@ -1,9 +1,10 @@
 /** Presentation : listes de saisie, cartes de verdict, volets, blocs de resultats. Mise en forme pure : aucun calcul. */
 
-import { echapper, nombreAffiche, notationHtml, tauxAffiche, traduireSource, type BlocResultat, type LigneResultat } from 'aedificium-ui';
+import { echapper, nombreAffiche, notationHtml, tauxAffiche, traduireSource, type BlocResultat, type LigneResultat, type VerificationNote } from 'aedificium-ui';
 import { verifierAcier, type ElementAcier } from '../../src/acier';
-import { verifierFond } from '../../src/fond';
-import { modeleBande, type Calcul, type Resultat, type Saisie } from './form';
+import { verifierFond, type ResultatFond } from '../../src/fond';
+import type { ResultatPhases } from '../../src/phases';
+import { calculDePhase, modeleBande, type Calcul, type Resultat, type Saisie } from './form';
 import { phrase, T } from './textes';
 
 type Combi = Resultat['combinaisons'][number];
@@ -145,6 +146,26 @@ export const chargesHtml = (s: Saisie): string => {
   }).join('');
 };
 
+/** Phases de construction : surexcavation, tableau des phases intermediaires et ligne finale grisee. */
+export function phasesHtml(s: Saisie): string {
+  if (!s.phasage) return '';
+  const caseAppui = (i: number, nom: string, coche: boolean): string =>
+    `<label class="case"><input type="checkbox" data-liste="phases" data-i="${i}" data-appui="${echapper(nom)}"${coche ? ' checked' : ''}> ${echapper(nom)}</label>`;
+  const saisi = (i: number, sous: string, v: string, etiquette: string): string =>
+    `<input type="text" inputmode="decimal" aria-label="${etiquette}" data-liste="phases" data-i="${i}" data-sous="${sous}" value="${echapper(v)}">`;
+  const fond = T('Fond (m)', 'Level (m)');
+  const eau = T('Eau (m)', 'Water (m)');
+  const lignes = s.phases.map((p, i) => `<tr><td>${i + 1}</td><td>${saisi(i, 'H', p.H, `Phase ${i + 1}, ${fond}`)}</td>` +
+    `<td class="appuis">${s.appuis.map((a) => caseAppui(i, a.nom, p.appuis.includes(a.nom))).join('') || '—'}</td>` +
+    `<td>${saisi(i, 'zEau', p.zEau, `Phase ${i + 1}, ${eau}`)}</td>` +
+    `<td><button type="button" data-action="retirer" data-liste="phases" data-i="${i}" aria-label="${T('Retirer', 'Remove')}">−</button></td></tr>`).join('');
+  const finale = `<tr class="finale"><td>${s.phases.length + 1}</td><td>${echapper(s.H)}</td><td class="appuis">${s.appuis.map((a) => echapper(a.nom)).join(', ') || '—'}</td><td>${echapper(s.zFouille)}</td><td></td></tr>`;
+  return `<label class="ligne"><span>${T('Surexcavation sous chaque appui (m)', 'Over-excavation below each support (m)')}</span><input type="text" inputmode="decimal" data-champ="surexcavation" value="${echapper(s.surexcavation)}"></label>` +
+    `<div class="defile"><table class="phases"><thead><tr><th>Ph.</th><th>${fond}</th><th>${T('Appuis', 'Supports')}</th><th>${eau}</th><th></th></tr></thead><tbody>${lignes}${finale}</tbody></table></div>` +
+    `<span class="source">${T('La dernière ligne est la configuration finale (saisie ci-dessus). Chaque phase est calculée seule, sans historique.', 'The last row is the final configuration (input above). Each phase is calculated on its own, without history.')}</span>` +
+    `<div class="boutons"><button type="button" data-action="generer-phases">${T('Générer les phases', 'Generate the phases')}</button><button type="button" data-action="ajouter" data-liste="phases">+ phase</button></div>`;
+}
+
 // -------------------------------------------------------------------------------------------------
 // Verdicts
 // -------------------------------------------------------------------------------------------------
@@ -246,6 +267,87 @@ export function verdictsHtml(c: Calcul, r: Resultat): string {
     h += `<div class="alertes"><h3>${T('Alertes', 'Warnings')}</h3><ul>${r.alertes.map((a) => `<li>${txt(a)}</li>`).join('')}</ul></div>`;
   }
   return h;
+}
+
+export type Verif = VerificationNote & { taux: number };
+
+/** Verifications d'un calcul (une phase ou la configuration finale), noms prefixes. */
+export function verificationsDe(calcul: Calcul, r: Resultat, fond: ResultatFond, prefixe: string): Verif[] {
+  const acier = verifierAcier(calcul.donnees, r, calcul.acier);
+  const cl = clauses(r.generation);
+  return [
+    ...r.combinaisons.map((x) => ({
+      nom: `Rotation, ${nomCombinaison(x.nom)}`,
+      clause: clauseRotation(r),
+      taux: x.mobilisation,
+      ok: x.mobilisation <= 1,
+    })),
+    ...acier.map((x) => ({
+      nom: `${titreAcier(x)}, ${x.profil} ${x.nuance}`,
+      clause: 'EN 1993-1-1, 6.2 ; 6.3',
+      taux: x.taux ?? NaN,
+      ok: x.taux !== null && x.taux <= 1,
+    })),
+    ...(fond.hyd === null ? [] : [{
+      nom: T('Soulèvement hydraulique', 'Hydraulic heave'),
+      clause: cl.hyd,
+      taux: fond.hyd.taux,
+      ok: fond.hyd.taux <= 1,
+    }]),
+    ...(fond.fond.applicable ? fond.fond.combinaisons.map((x) => ({
+      nom: `${T('Soulèvement du fond', 'Basal heave')} · ${nomCombinaison(x.combinaison)}`,
+      clause: cl.fond,
+      taux: x.taux,
+      ok: x.taux <= 1,
+    })) : []),
+    ...fond.vertical.map((v) => ({
+      nom: `${T('Équilibre vertical', 'Vertical equilibrium')} · ${nomCombinaison(v.combinaison)}`,
+      clause: cl.vertical,
+      taux: v.taux,
+      ok: v.taux <= 1,
+    })),
+  ].map((v) => ({ ...v, nom: prefixe + v.nom }));
+}
+
+
+/** Verdicts du calcul phase : la pire verification de chaque phase, puis le detail de la phase determinante. */
+export function verdictsPhasesHtml(c: Calcul, rp: ResultatPhases): string {
+  const n = rp.phases.length;
+  let h = `<div class="groupe">${T('Phases de construction', 'Construction phases')}</div>`;
+  rp.phases.forEach((x, i) => {
+    const v = verificationsDe(calculDePhase(c, x.phase, i === n - 1), x.resultat, x.fond, '');
+    // Taux non calculable (NaN, acier en erreur) : pire que tout.
+    const cle = (y: Verif): number => (Number.isNaN(y.taux) ? Infinity : y.taux);
+    const pire = v.reduce((a, b) => (cle(b) > cle(a) ? b : a));
+    const refus = v.filter((y) => !y.ok).length;
+    const corps = T(`Fond ${aff(x.phase.H, 2)} m ; appuis : ${x.phase.appuis.join(', ') || 'aucun'} ; ${v.length} vérifications, ${refus} non satisfaite(s). Pire : ${pire.nom}.`,
+      `Level ${aff(x.phase.H, 2)} m; supports: ${x.phase.appuis.join(', ') || 'none'}; ${v.length} checks, ${refus} not satisfied. Worst: ${pire.nom}.`);
+    const det = x.phase.nom === rp.determinante.phase ? T(' Phase déterminante pour la butée.', ' Governing phase for passive resistance.') : '';
+    h += carteTaux(x.phase.nom, pire.clause ?? '', cle(pire), corps + det, false);
+  });
+  const k = rp.phases.findIndex((x) => x.phase.nom === rp.determinante.phase);
+  const det = rp.phases[k];
+  h += `<div class="groupe">${T('Phase déterminante', 'Governing phase')} : ${det.phase.nom}</div>`.replace(' : ', T(' : ', ': '));
+  return h + verdictsHtml(calculDePhase(c, det.phase, k === n - 1), det.resultat);
+}
+
+/** Tableau des phases : fond, appuis, fiche, M_max, reactions, taux ; ligne d'enveloppe. */
+export function tableauPhasesHtml(c: Calcul, rp: ResultatPhases): string {
+  const noms = c.donnees.appuis.map((a) => a.nom);
+  const lignes = rp.phases.map((x) => {
+    const ks = x.resultat.combinaisons;
+    const fiches = ks.map((k) => k.ficheMinimale);
+    const fiche = fiches.some((f) => f === null) ? '—' : aff(Math.max(...(fiches as number[])), 2);
+    const Rh = noms.map((nom) => {
+      const r = ks.flatMap((k) => k.appuis.filter((a) => a.nom === nom).map((a) => Math.abs(a.Rh)));
+      return r.length === 0 ? '—' : aff(Math.max(...r), 1);
+    });
+    const taux = Math.max(...ks.map((k) => k.mobilisation));
+    return `<tr${x.phase.nom === rp.determinante.phase ? ' class="gouverne"' : ''}><td>${x.phase.nom}</td><td class="n">${aff(x.phase.H, 2)}</td><td>${x.phase.appuis.join(', ') || '—'}</td><td class="n">${fiche}</td><td class="n">${aff(x.resultat.Md, 1)}</td>${Rh.map((v) => `<td class="n">${v}</td>`).join('')}<td class="n">${tauxAffiche(taux)}</td></tr>`;
+  }).join('');
+  const L = rp.longueurRequise;
+  const env = `<tr class="enveloppe"><td>${T('Enveloppe', 'Envelope')}</td><td></td><td></td><td class="n">${L.valeur === null ? '—' : `L ≥ ${aff(L.valeur, 2)}`}</td><td class="n">${aff(rp.Md, 1)}</td>${rp.appuis.map((a) => `<td class="n">${aff(a.Rh, 1)}</td>`).join('')}<td class="n">${tauxAffiche(rp.determinante.mobilisation)}</td></tr>`;
+  return `<details class="deriv" open><summary>${T('Phases de construction', 'Construction phases')}</summary><div class="defile"><table><thead><tr><th>Phase</th><th class="n">${T('Fond (m)', 'Level (m)')}</th><th>${T('Appuis', 'Supports')}</th><th class="n">${T('Fiche min. (m)', 'Min. embedment (m)')}</th><th class="n">${sym('M_max')} (kN·m)</th>${noms.map((nm) => `<th class="n">${sym('R_h')} ${echapper(nm)} (kN)</th>`).join('')}<th class="n">${T('butée mobilisée', 'passive mobilised')}</th></tr></thead><tbody>${lignes}${env}</tbody></table></div></details>`;
 }
 
 export function voletsHtml(r: Resultat): string {
