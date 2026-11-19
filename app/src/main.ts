@@ -1,6 +1,6 @@
 /** Cablage de l'interface des parois. Ne calcule rien : tient la saisie, appelle le noyau par `form`. */
 
-import { avertissement2eGeneration, avertissementAnnexeLu, blocsEnTexte, definirLangue, langueDuDocument, noteDeCalculHtml, notationHtml, ouvrirOuTelecharger, resultatsEnCsv, svgAutonome, telecharger } from 'aedificium-ui';
+import { avertissement2eGeneration, avertissementAnnexeLu, blocsEnTexte, definirLangue, langueDuDocument, noteDeCalculHtml, telechargerNotePdf, notationHtml, ouvrirOuTelecharger, resultatsEnCsv, svgAutonome, telecharger } from 'aedificium-ui';
 import { coupeEtDiagrammes, type OptionsDessin } from './dessin';
 import { lireSaisie, longueurProposee, nouvelAppui, nouvelleCharge, relire, saisieParDefaut, serialiser, verifier, type Calcul, type Resultat, type Saisie } from './form';
 import { noteDuCalcul } from './note';
@@ -215,8 +215,11 @@ document.addEventListener('click', (evenement) => {
   if (!action.startsWith('exporter-')) return;
   if (dernier === null) return montrerErreur(T('Aucun calcul valide à exporter : corriger la saisie.', 'No valid calculation to export: correct the input.'));
   const e = dernier;
-  if (action === 'exporter-note') {
-    ouvrirOuTelecharger('parois-note.html', noteDeCalculHtml(noteDuCalcul(e.calcul, e.resultat, cartouche()), ''));
+  if (action === 'exporter-note' || action === 'exporter-note-pdf') {
+    const noteCalc = noteDuCalcul(e.calcul, e.resultat, cartouche());
+    // PDF construit au clic ; en cas d'echec, la note HTML prend le relais.
+    if (action === 'exporter-note-pdf') void telechargerNotePdf('parois-note.pdf', noteCalc, '').catch(() => ouvrirOuTelecharger('parois-note.html', noteDeCalculHtml(noteCalc, '')));
+    else ouvrirOuTelecharger('parois-note.html', noteDeCalculHtml(noteCalc, ''));
   } else if (action === 'exporter-coupe') {
     telecharger('parois-coupe.svg', svgAutonome(coupeEtDiagrammes(e.calcul, e.resultat, optionsDessin(e.resultat)), ''), 'image/svg+xml;charset=utf-8');
   } else if (action === 'exporter-resultats') {
