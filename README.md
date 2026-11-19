@@ -8,7 +8,7 @@ Fait partie de la suite [Aedificium web](https://henri421.github.io/WebAedificiu
 Page publiée : <https://henri421.github.io/parois/>.
 
 > **Aide au calcul. L'outil constate, il ne prescrit pas.** Valeurs recommandées des normes. La 2ᵉ génération
-> n'est applicable qu'une fois son annexe nationale publiée. **Validé sur : exemple A.7 du rapport JRC EUR 26227 EN (2013), palplanche ancrée
+> n'est applicable qu'une fois son annexe nationale publiée. **Validé sur : exemples A.7 (palplanche ancrée) et A.6.2 (soulèvement hydraulique) du rapport JRC EUR 26227 EN (2013)
 > (voir `docs/validation/`). Pas encore comparé à un logiciel du commerce.** La vérification finale incombe à l'ingénieur du projet.
 
 ## Ce que l'outil rend

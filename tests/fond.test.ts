@@ -1,4 +1,5 @@
 // Tests d'acceptation du fond de fouille et de l'equilibre vertical (lot fond, PLAN.md). A ne pas modifier.
+// HYD modifie par Claude le 19/11/2026 (validation JRC A.6.2) : h_r de l'EAU au lieu du gradient uniforme.
 // Attendus calcules a la main (HYD, Bjerrum et Eide) ou par formule fermee (composantes verticales
 // d'un sable homogene sec : Ka.sin(δa).γL²/2 et Kp.sin(δp).γD²/2).
 import { describe, expect, it } from 'vitest';
@@ -27,16 +28,17 @@ describe('soulevement hydraulique au pied', () => {
   it('2e generation : Δu ≤ 0,67 σ′v0', () => {
     const d = base();
     const h = verifierFond(d, verifierParoi(d)).hyd!;
-    // i = (5 − 2) / ((10 − 2) + (10 − 5)) = 3/13 ; Δu = i.10.5 ; σ′ = 20.5 − 10.5 = 50.
-    proche(h.gradient, 3 / 13);
-    proche(h.du, (3 / 13) * 50);
+    // h = 5 − 2 = 3, h′ = 5 − 2 = 3, t = 10 − 5 = 5 : h_r = 3 / (1 + ∛1,6) ; Δu = 10.h_r ; σ′ = 20.5 − 10.5 = 50.
+    const hr = 3 / (1 + Math.cbrt(1.6));
+    proche(h.gradient, hr / 5);
+    proche(h.du, 10 * hr);
     proche(h.sigma, 50);
-    proche(h.taux, ((3 / 13) * 50) / (0.67 * 50));
+    proche(h.taux, (10 * hr) / (0.67 * 50));
   });
   it('1re generation : 1,35 Δu ≤ 0,90 σ′v0', () => {
     const d = base();
     d.norme = { generation: 1, profil: 'recommande', approche: 'DA2' };
-    proche(verifierFond(d, verifierParoi(d)).hyd!.taux, (1.35 * (3 / 13) * 50) / (0.9 * 50));
+    proche(verifierFond(d, verifierParoi(d)).hyd!.taux, (1.35 * 10 * (3 / (1 + Math.cbrt(1.6)))) / (0.9 * 50));
   });
   it('sans ecoulement : rien', () => {
     const d = base();

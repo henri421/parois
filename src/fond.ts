@@ -2,8 +2,12 @@
  * Fond de fouille et equilibre vertical d'une paroi encastree.
  *
  * - Soulevement hydraulique (HYD) au pied, cote fouille, en presence d'ecoulement : colonne de sol
- *   entre le fond de fouille et le pied, surpression Δu = i.γw.(L − z_fouille) avec le gradient uniforme
- *   du noyau. 2e generation : EN 1997-1:2024, 8.1.4.2, Δu ≤ γHYD.σ′v0 (γHYD = 0,67, note 2).
+ *   entre le fond de fouille et le pied, surpression Δu = γw.h_r au pied. h_r par la formule approchee de
+ *   l'EAU reprise dans le rapport JRC EUR 26227 EN (2013), A.6.2 : h_r = h / (1 + ∛(h′/t + 1)), h perte
+ *   de charge totale, t = L − z_fouille, h′ = z_fouille − max(z_terre, 0) chemin dans le sol cote terre
+ *   au-dessus du niveau d'eau cote fouille (sol homogene, fouille large). Le gradient uniforme du noyau,
+ *   qui garde les pressions d'eau sur la paroi, sous-estime la perte de charge concentree au pied
+ *   (exemple A.6.2 : 16,5 kPa au lieu de 21,3) ; il n'est plus employe pour le HYD. 2e generation : EN 1997-1:2024, 8.1.4.2, Δu ≤ γHYD.σ′v0 (γHYD = 0,67, note 2).
  *   1re generation : EN 1997-1:2004, 2.4.7.5, γG;dst = 1,35 sur la force d'ecoulement et γG;stb = 0,90
  *   sur le poids deja-jauge (ANB 2022, tableau A.17, sans ecart a la valeur recommandee).
  * - Soulevement du fond en sol fin non draine (EN 1997-3:2025, 7.6.6 et D.7, formules D.24 a D.26,
@@ -23,6 +27,7 @@ import {
 const rad = (d: number): number => (d * Math.PI) / 180;
 
 export interface VerificationHyd {
+  /** Gradient moyen dans la colonne, h_r / t. */
   gradient: number;
   /** Surpression au pied cote fouille (kPa). */
   du: number;
@@ -72,11 +77,19 @@ export function facteurNc(He: number, B: number, longueur: number | null): numbe
   return He / B <= 2.5 ? 5 * (1 + (0.2 * He) / B) * forme : 7.5 * forme;
 }
 
+/** Charge residuelle au pied, cote fouille (EAU, rapport JRC 2013, A.6.2) : h / (1 + ∛(h′/t + 1)). */
+export function chargeAuPied(h: number, hPrime: number, t: number): number {
+  return h / (1 + Math.cbrt(Math.max(0, hPrime) / t + 1));
+}
+
 function hyd(d: DonneesParoi): VerificationHyd | null {
-  const i = gradientHydraulique(d, d.L);
-  if (i <= 0) return null;
-  const { zFouille } = d.eau;
-  const du = i * GAMMA_W * (d.L - zFouille);
+  if (gradientHydraulique(d, d.L) <= 0) return null;
+  const { zTerre, zFouille } = d.eau;
+  const t = d.L - zFouille;
+  if (!(t > 0)) return null;
+  const hr = chargeAuPied(zFouille - zTerre, zFouille - Math.max(zTerre, 0), t);
+  const i = hr / t;
+  const du = GAMMA_W * hr;
   const sigma = poids(d, d.H, d.L, zFouille) + GAMMA_W * Math.max(0, d.H - zFouille) - GAMMA_W * (d.L - zFouille);
   const [Ed, Rd] = d.norme.generation === 2 ? [du, 0.67 * sigma] : [1.35 * du, 0.9 * sigma];
   return { gradient: i, du, sigma, Ed, Rd, taux: Rd > 0 ? Ed / Rd : Infinity };
