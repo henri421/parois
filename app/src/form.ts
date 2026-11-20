@@ -19,6 +19,7 @@ import {
 import type { DonneesAcier } from '../../src/acier';
 import { donneesDePhase, phasesAutomatiques, verifierPhases, type Phase, type ResultatPhases } from '../../src/phases';
 import { verifierParoi as calculParoi } from '../../src/parois';
+import { verifierFond } from '../../src/fond';
 import { T } from './textes';
 
 /** Nuances d'acier admises ; toute autre valeur retombe sur S235. */
@@ -335,6 +336,49 @@ export function longueurProposee(calcul: Calcul, r: Resultat): string | null {
   if (fiches.some((f) => f === null)) return null;
   const f = Math.max(...(fiches as number[]));
   return nombreAffiche(Math.ceil((calcul.donnees.H + f) * 20 - 1e-6) / 20, 2);
+}
+
+/**
+ * « Trouver δ passif » (EN 1997-3, 7.6.4 ; EN 1997-1, 9.7.5) : plus grand facteur commun λ (0 a 1) sur
+ * les k_tan δ passifs saisis tel que l'equilibre vertical soit satisfait dans toutes les phases (la
+ * configuration finale seule sans phasage). Les rapports entre couches sont gardes ; valeurs arrondies
+ * par defaut au millieme. 'deja' : rien a changer ; null : saisie illisible ou aucun δ ne convient.
+ */
+export function deltaPassifPropose(s: Saisie): { couches: string[]; facteur: number } | 'deja' | null {
+  const l = lireSaisie(s);
+  if (!l.ok) return null;
+  const c = l.calcul;
+  const d = c.donnees;
+  const phases: Phase[] = c.phases ?? [{ nom: 'Phase 1', H: d.H, appuis: d.appuis.map((a) => a.nom), zEau: d.eau.zFouille }];
+  const base = d.couches.map((k) => k.kDeltaP);
+  const valeurs = (lambda: number): number[] => base.map((k) => Math.floor(k * lambda * 1000 + 1e-9) / 1000);
+  let ordre = phases.map((_p, i) => i);
+  const satisfait = (k: number[]): boolean => {
+    try {
+      const dk = { ...d, couches: d.couches.map((x, i) => ({ ...x, kDeltaP: k[i] })) };
+      // Phase par phase, sans enveloppe ; la derniere phase refusee est essayee en premier.
+      for (const i of [ordre[0], ...ordre.slice(1)]) {
+        const dp = donneesDePhase(dk, phases[i]);
+        if (!verifierFond(dp, calculParoi(dp)).vertical.every((v) => v.taux <= 1)) {
+          ordre = [i, ...ordre.filter((j) => j !== i)];
+          return false;
+        }
+      }
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  if (satisfait(base)) return 'deja';
+  if (!satisfait(valeurs(0))) return null;
+  let bas = 0;
+  let haut = 1;
+  for (let i = 0; i < 14; i += 1) {
+    const m = (bas + haut) / 2;
+    if (satisfait(valeurs(m))) bas = m;
+    else haut = m;
+  }
+  return { couches: valeurs(bas).map(nombreSaisi), facteur: bas };
 }
 
 export const serialiser = (s: Saisie): string => JSON.stringify({ format: FORMAT, ...s }, null, 2);

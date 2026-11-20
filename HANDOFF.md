@@ -112,3 +112,26 @@ précédent est dans l'historique git.
   - vues Enveloppe et Phase k ;
   - cartes et tableau des phases ;
   - aucune erreur en console.
+
+## Ajout du 20/11 : « Trouver δ passif » (demande de l'utilisateur)
+
+**Fichiers**
+- `app/src/form.ts` : `deltaPassifPropose`.
+- `app/src/main.ts`, `app/index.html`, `app/en/index.html` : bouton dans « Couches ».
+- `tests/app/delta-passif.test.ts` : nouveau, 5 tests.
+
+**Décisions**
+- Un facteur commun λ, entre 0 et 1, s'applique aux k_tan δ passifs saisis. Les rapports entre couches sont donc gardés, et δ n'est jamais augmenté.
+- On cherche le plus grand λ tel que l'équilibre vertical soit satisfait dans toutes les phases (la configuration finale seule si le phasage est inactif). Cela suit EN 1997-3, 7.6.4 : réduire δ jusqu'à l'équilibre vertical.
+- Recherche par dichotomie (14 essais), avec des valeurs arrondies par défaut au millième. Chaque essai fait seulement le calcul de chaque phase, sans enveloppe. La phase refusée à l'essai précédent est essayée en premier.
+- Cas sans changement : le message dit si l'équilibre est déjà satisfait, ou si aucun δ ne convient.
+- Bouton « Recherche… » pendant le calcul, qui dure environ 2,5 s sur le cas d'essai phasé.
+
+**Points douteux**
+- Les 5 tests prennent jusqu'à 3,5 s en local. Leur délai est porté à 30 s pour la CI.
+- Le même δ s'applique à toutes les phases.
+
+**Statut**
+- `npm test` : 131 tests passent.
+- Typecheck et build passent.
+- Banc : Phase 1 passe de 2,034 à 0,998 avec δ/φ = 0,34.

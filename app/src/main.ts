@@ -2,7 +2,7 @@
 
 import { avertissement2eGeneration, avertissementAnnexeLu, blocsEnTexte, definirLangue, langueDuDocument, noteDeCalculHtml, telechargerNotePdf, notationHtml, ouvrirOuTelecharger, resultatsEnCsv, svgAutonome, telecharger } from 'aedificium-ui';
 import { coupeEtDiagrammes, dessinPhasage, type OptionsDessin } from './dessin';
-import { lireSaisie, longueurProposee, nouvelAppui, nouvelleCharge, phasesGenerees, relire, saisieParDefaut, serialiser, verifier, verifierPhasage, type Calcul, type Resultat, type Saisie } from './form';
+import { deltaPassifPropose, lireSaisie, longueurProposee, nouvelAppui, nouvelleCharge, phasesGenerees, relire, saisieParDefaut, serialiser, verifier, verifierPhasage, type Calcul, type Resultat, type Saisie } from './form';
 import type { ResultatPhases } from '../../src/phases';
 import { noteDuCalcul } from './note';
 import { appuisHtml, blocEntrees, blocsResultat, chargesHtml, couchesHtml, messageDErreur, nomCombinaison, phasesHtml, tableauPhasesHtml, verdictsHtml, verdictsPhasesHtml, voletsHtml } from './vue';
@@ -229,6 +229,15 @@ function retirer(liste: string, i: number): void {
   if (liste === 'phases') saisie.phases.splice(i, 1);
 }
 
+function trouverDelta(): void {
+  const p = deltaPassifPropose(saisie);
+  if (p === 'deja') return montrerErreur(T('L’équilibre vertical est déjà satisfait dans toutes les phases : δ passif inchangé.', 'Vertical equilibrium is already satisfied in every phase: passive δ unchanged.'));
+  if (p === null) return montrerErreur(T('Aucun δ passif ne satisfait l’équilibre vertical avec cette saisie (ou saisie à corriger).', 'No passive δ satisfies vertical equilibrium with this input (or the input needs correcting).'));
+  saisie.couches.forEach((c, i) => { c.kDeltaP = p.couches[i]; });
+  rendreListes();
+  recalculer();
+}
+
 document.addEventListener('click', (evenement) => {
   if (!(evenement.target instanceof HTMLElement)) return;
   const bouton = evenement.target.closest('button');
@@ -263,6 +272,22 @@ document.addEventListener('click', (evenement) => {
     saisie.L = L;
     ecrireSaisie();
     return recalculer();
+  }
+  if (action === 'trouver-delta') {
+    // Recherche de quelques secondes : le bouton l'annonce, le calcul part apres l'affichage.
+    if (bouton.disabled) return;
+    const libelle = bouton.textContent;
+    bouton.disabled = true;
+    bouton.textContent = T('Recherche…', 'Searching…');
+    window.setTimeout(() => {
+      try {
+        trouverDelta();
+      } finally {
+        bouton.disabled = false;
+        bouton.textContent = libelle;
+      }
+    }, 30);
+    return;
   }
   if (action === 'enregistrer') return telecharger('parois.json', serialiser(saisie), 'application/json;charset=utf-8');
   if (action === 'reinitialiser') {
